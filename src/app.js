@@ -1908,6 +1908,37 @@ function renderDayTimelineDetail(day) {
   }
 }
 
+function renderTripQuizResult() {
+  const qEl = document.getElementById('trip-wizard-question');
+  const optEl = document.getElementById('trip-wizard-options');
+  const progressEl = document.getElementById('trip-wizard-progress');
+  const profileEl = document.getElementById(
+    'trip-wizard-profile-preview',
+  );
+  const destEl = document.getElementById('trip-wizard-destinations');
+  const prevBtn = document.getElementById('trip-wizard-prev-btn');
+  if (!qEl || !optEl || !progressEl || !profileEl || !destEl) return;
+
+  progressEl.textContent = '已完成全部问卷';
+  qEl.textContent =
+    '太棒了！你的旅行画像已生成，可在右侧预览。点击下方按钮可将画像写入「旅行期望」。';
+  optEl.innerHTML = '';
+
+  const profile = buildTripProfileFromTags(tripQuizTags);
+  profileEl.textContent = profile
+    ? `大致画像：${profile.summary}`
+    : '根据你的选择，我们会帮你概括出一条「旅行画像」，作为之后 AI 生成攻略的依据。';
+  renderTripProfileDestinations(profile, destEl);
+
+  if (prevBtn) {
+    prevBtn.style.display = '';
+    prevBtn.onclick = () => {
+      if (tripQuizTags.length) tripQuizTags.pop();
+      renderTripQuizQuestion('q_food');
+    };
+  }
+}
+
 function renderTripQuizQuestion(nodeId) {
   const node = TRIP_QUIZ_TREE[nodeId];
   const qEl = document.getElementById('trip-wizard-question');
@@ -1920,6 +1951,8 @@ function renderTripQuizQuestion(nodeId) {
   const prevBtn = document.getElementById('trip-wizard-prev-btn');
   if (!node || !qEl || !optEl || !progressEl || !profileEl || !destEl)
     return;
+
+  if (prevBtn) prevBtn.style.display = '';
 
   if (!tripQuizPath.length) {
     tripQuizPath.push(nodeId);
@@ -2100,7 +2133,7 @@ function collectTripContext() {
   };
 }
 
-function buildAiPrompt({ trip, focusCityId, budgetPerDay }) {
+function buildAiPrompt({ trip, focusCityId, budgetPerDay, focus = 'all' }) {
   const {
     title,
     startDate,
@@ -2213,6 +2246,18 @@ function buildAiPrompt({ trip, focusCityId, budgetPerDay }) {
     '请根据以上信息（尤其旅行期望）返回 sections：1）优先给出「景点推荐」type=spots，放入该城市的景点池；2）可为未填住宿的天推荐 type=lodging；3）若有行程优化建议用 type=other。',
   );
 
+  if (focus === 'spots') {
+    lines.push('');
+    lines.push(
+      '【本轮任务】请只输出 type="spots" 的 sections，不要输出 lodging 或 other。',
+    );
+  } else if (focus === 'lodging') {
+    lines.push('');
+    lines.push(
+      '【本轮任务】请只输出 type="lodging" 的 sections，不要输出 spots 或 other。',
+    );
+  }
+
   return lines.join('\n');
 }
 
@@ -2223,11 +2268,20 @@ function scheduleAiRefresh() {
   }
   if (aiRefreshTimer) clearTimeout(aiRefreshTimer);
   aiRefreshTimer = setTimeout(() => {
-    requestAiRecommendations();
+    requestAiRecommendations({ focus: 'all' });
   }, 1500);
 }
 
-async function requestAiRecommendations() {
+function recommendSpotsByAI() {
+  requestAiRecommendations({ focus: 'spots' });
+}
+
+function recommendLodgingByAI() {
+  requestAiRecommendations({ focus: 'lodging' });
+}
+
+async function requestAiRecommendations(options = {}) {
+  const { focus = 'all' } = options;
   const aiStatus = document.getElementById('ai-status-text');
   const aiPromptView = document.getElementById('ai-prompt-view');
   const aiSectionsContainer = document.getElementById('ai-sections-container');
@@ -2241,7 +2295,7 @@ async function requestAiRecommendations() {
   const trip = collectTripContext();
   const focusCityId = aiCitySelect.value || (cities[0]?.id || '');
   const budgetPerDay = parseFloat(aiBudgetInput.value) || 0;
-  const prompt = buildAiPrompt({ trip, focusCityId, budgetPerDay });
+  const prompt = buildAiPrompt({ trip, focusCityId, budgetPerDay, focus });
 
   lastAiPayload = { trip, focusCityId, budgetPerDay, prompt };
 
