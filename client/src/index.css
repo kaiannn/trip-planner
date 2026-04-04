@@ -1,0 +1,42 @@
+@import 'tailwindcss';
+
+/*
+ * 字体：改下面 --font-sans，并在 index.html 里换成对应的 Google Fonts <link>。
+ * 常见搭配：Inter + Noto Sans SC（当前）| DM Sans + Noto Sans SC | 仅用系统字体则写 system-ui 栈即可。
+ */
+@theme {
+  --font-sans:
+    'Inter', 'Noto Sans SC', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji';
+  --color-brand-50: #f0fdfa;
+  --color-brand-100: #ccfbf1;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0d9488;
+  --color-brand-700: #0f766e;
+  --color-brand-800: #115e59;
+  --color-brand-900: #134e4a;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings:
+    'kern' 1,
+    'liga' 1,
+    'calt' 1;
+}
+
+body {
+  @apply m-0 min-h-dvh font-sans text-base leading-relaxed text-slate-900 antialiased;
+  background-color: #f1f5f9;
+  background-image:
+    radial-gradient(ellipse 90% 60% at 50% -25%, rgba(45, 212, 191, 0.09), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 100% 0%, rgba(148, 163, 184, 0.12), transparent 45%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 40%, #eef2f7 100%);
+}
+
+#root {
+  @apply min-h-dvh;
+}
