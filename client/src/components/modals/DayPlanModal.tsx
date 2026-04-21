@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { useTripStore } from '../../store/tripStore'
 import { Btn, Field } from '../ui'
@@ -33,9 +33,9 @@ export function DayPlanModal() {
   const [daySpotPick, setDaySpotPick] = useState('')
   const [activeDayId, setActiveDayId] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (sortedCities.length && !cityId) setCityId(sortedCities[0].id)
-  }, [sortedCities, cityId])
+  if (sortedCities.length && !cityId) {
+    setCityId(sortedCities[0].id)
+  }
 
   const citySpots = useMemo(
     () => spots.filter((s) => s.cityId === cityId),

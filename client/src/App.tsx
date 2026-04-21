@@ -1,13 +1,22 @@
+import { useEffect } from 'react'
 import { Header } from './components/Header'
 import { LeftColumn } from './components/LeftColumn'
 import { LogPanel } from './components/LogPanel'
 import { MapPanel } from './components/MapPanel'
 import { DayPlanModal } from './components/modals/DayPlanModal'
+import { SettingsModal } from './components/modals/SettingsModal'
 import { SpotDetailModal } from './components/modals/SpotDetailModal'
 import { SpotPoolModal } from './components/modals/SpotPoolModal'
 import { TripWizardModal } from './components/modals/TripWizardModal'
+import { useSettingsStore } from './store/settingsStore'
 
 export default function App() {
+  const fetchServerKeyStatus = useSettingsStore((s) => s.fetchServerKeyStatus)
+
+  useEffect(() => {
+    void fetchServerKeyStatus()
+  }, [fetchServerKeyStatus])
+
   return (
     <div className="flex min-h-dvh flex-col">
       <Header />
@@ -19,6 +28,7 @@ export default function App() {
       <DayPlanModal />
       <TripWizardModal />
       <SpotDetailModal />
+      <SettingsModal />
     </div>
   )
 }

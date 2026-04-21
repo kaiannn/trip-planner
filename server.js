@@ -10,8 +10,42 @@ dotenv.config();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
-app.use(cors());
+
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin:
+      process.env.NODE_ENV === 'production' && ALLOWED_ORIGINS.length
+        ? ALLOWED_ORIGINS
+        : true,
+  }),
+);
 app.use(express.json({ limit: '1mb' }));
+
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 30;
+
+function rateLimit(req, res, next) {
+  const key = req.ip || req.connection.remoteAddress || 'unknown';
+  const now = Date.now();
+  let entry = rateLimitMap.get(key);
+  if (!entry || now - entry.start > RATE_LIMIT_WINDOW_MS) {
+    entry = { start: now, count: 0 };
+    rateLimitMap.set(key, entry);
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX) {
+    return res.status(429).json({ error: '请求过于频繁，请稍后再试。' });
+  }
+  next();
+}
+
+app.use('/api', rateLimit);
 
 const PORT = process.env.PORT || 3001;
 const LLM_BASE_URL = process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1';
@@ -19,9 +53,24 @@ const LLM_MODEL = process.env.LLM_MODEL || 'deepseek-chat';
 const LLM_API_KEY = process.env.LLM_API_KEY;
 const AMAP_KEY = process.env.AMAP_KEY || '';
 
+function getLlmKey(req) {
+  return LLM_API_KEY || (req.headers['x-llm-api-key'] || '').trim() || '';
+}
+
+function getAmapKey(req) {
+  return AMAP_KEY || (req.headers['x-amap-key'] || '').trim() || '';
+}
+
 if (!LLM_API_KEY) {
   console.warn('[WARN] 未设置 LLM_API_KEY,/api/ai/recommend 调用会失败。请在 .env 中填写。');
 }
+
+app.get('/api/config/status', (_req, res) => {
+  res.json({
+    llm: !!LLM_API_KEY,
+    amap: !!AMAP_KEY,
+  });
+});
 
 app.post('/api/ai/recommend', async (req, res) => {
   try {
@@ -29,10 +78,11 @@ app.post('/api/ai/recommend', async (req, res) => {
     if (!prompt || typeof prompt !== 'string') {
       return res.status(400).json({ error: '请求体中缺少 prompt 字段。' });
     }
-    if (!LLM_API_KEY) {
+    const llmKey = getLlmKey(req);
+    if (!llmKey) {
       return res.status(500).json({
         error:
-          '后端未配置 LLM_API_KEY,请在 .env 中填写你的 DeepSeek/豆包等模型的 API Key。',
+          '未配置 LLM API Key。请在设置中填写，或在服务端 .env 中配置 LLM_API_KEY。',
       });
     }
 
@@ -48,7 +98,7 @@ app.post('/api/ai/recommend', async (req, res) => {
     const resp = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${LLM_API_KEY}`,
+        Authorization: `Bearer ${llmKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
@@ -90,16 +140,17 @@ app.post('/api/ai/recommend', async (req, res) => {
 app.get('/api/amap/poi', async (req, res) => {
   try {
     const { city, keywords, types, page = 1, quality } = req.query || {};
-    if (!AMAP_KEY) {
+    const amapKey = getAmapKey(req);
+    if (!amapKey) {
       return res.status(503).json({
-        error: '未配置 AMAP_KEY。请在 .env 中填写 AMAP_KEY,并在高德控制台为该 Key 开通「Web 服务」权限。',
+        error: '未配置高德 Key。请在设置中填写，或在服务端 .env 中配置 AMAP_KEY，并在高德控制台为该 Key 开通「Web 服务」权限。',
         pois: [],
       });
     }
     const cityStr = (city && String(city).trim()) || '';
     const kw = (keywords && String(keywords).trim()) || '景点';
     const url = new URL('https://restapi.amap.com/v3/place/text');
-    url.searchParams.set('key', AMAP_KEY);
+    url.searchParams.set('key', amapKey);
     url.searchParams.set('keywords', kw);
     if (cityStr) url.searchParams.set('city', cityStr);
     url.searchParams.set('citylimit', 'true');
@@ -147,16 +198,17 @@ app.get('/api/amap/poi', async (req, res) => {
 app.get('/api/amap/poi/detail', async (req, res) => {
   try {
     const { id } = req.query || {};
-    if (!AMAP_KEY) {
+    const amapKey = getAmapKey(req);
+    if (!amapKey) {
       return res.status(503).json({
-        error: '未配置 AMAP_KEY。',
+        error: '未配置高德 Key。',
       });
     }
     if (!id) {
       return res.status(400).json({ error: '缺少 id 参数。' });
     }
     const url = new URL('https://restapi.amap.com/v3/place/detail');
-    url.searchParams.set('key', AMAP_KEY);
+    url.searchParams.set('key', amapKey);
     url.searchParams.set('id', String(id));
     url.searchParams.set('extensions', 'all');
 
@@ -182,10 +234,11 @@ app.post('/api/ai/poi-query', async (req, res) => {
     if (!naturalQuery || typeof naturalQuery !== 'string') {
       return res.status(400).json({ error: '缺少 naturalQuery 字段。' });
     }
-    if (!LLM_API_KEY) {
+    const llmKey = getLlmKey(req);
+    if (!llmKey) {
       return res.status(503).json({
         error:
-          '后端未配置 LLM_API_KEY,无法使用 AI 帮你解析高德搜索意图。',
+          '未配置 LLM API Key。请在设置中填写，或在服务端 .env 中配置 LLM_API_KEY。',
       });
     }
 
@@ -225,7 +278,7 @@ app.post('/api/ai/poi-query', async (req, res) => {
     const resp = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${LLM_API_KEY}`,
+        Authorization: `Bearer ${llmKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),

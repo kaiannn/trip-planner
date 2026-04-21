@@ -1,7 +1,10 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { buildAiPrompt, type TripContextPayload } from '../lib/aiPrompt'
 import { buildTripProfileFromTags } from '../lib/tripProfile'
 import { isDuplicateSpot } from '../lib/geo'
+import { fetchAiRecommend, fetchAiPoiQuery, abortPendingAiRequest } from '../api/ai'
+import { fetchAmapPoiList, type AmapPoi } from '../api/amap'
 import type {
   AiFocus,
   AiItem,
@@ -48,6 +51,7 @@ interface TripState {
   quizPhase: 'question' | 'result'
   aiRefreshTimer: ReturnType<typeof setTimeout> | null
   mapRedrawNonce: number
+  autoSeedPending: { city: City; pois: AmapPoi[] } | null
 }
 
 function makeLog(message: string, level: LogLevel): LogEntry {
@@ -116,6 +120,8 @@ type TripActions = {
   fetchAmapPoi: () => Promise<void>
   fetchAmapPoiByAI: () => Promise<void>
   autoSeedPoisForCity: (city: City) => Promise<void>
+  confirmAutoSeed: () => void
+  cancelAutoSeed: () => void
   extendDaySpotsByAI: (dayId: string) => Promise<void>
   runReasonablenessChecks: () => void
   resetQuiz: () => void
@@ -127,7 +133,9 @@ type TripActions = {
   bumpMapRedraw: () => void
 }
 
-export const useTripStore = create<TripState & TripActions>((set, get) => ({
+export const useTripStore = create<TripState & TripActions>()(
+  persist(
+    (set, get) => ({
   cities: [],
   spots: [],
   dailyPlans: [],
@@ -158,6 +166,7 @@ export const useTripStore = create<TripState & TripActions>((set, get) => ({
   quizPhase: 'question',
   aiRefreshTimer: null,
   mapRedrawNonce: 0,
+  autoSeedPending: null,
 
   bumpMapRedraw: () => set((s) => ({ mapRedrawNonce: s.mapRedrawNonce + 1 })),
 
@@ -312,14 +321,7 @@ export const useTripStore = create<TripState & TripActions>((set, get) => ({
       aiSections: [],
     })
     try {
-      const res = await fetch('/api/ai/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      const sections = Array.isArray(data.sections) ? data.sections : []
+      const sections = await fetchAiRecommend(prompt)
       set({
         aiSections: sections,
         aiStatus: sections.length
@@ -327,6 +329,10 @@ export const useTripStore = create<TripState & TripActions>((set, get) => ({
           : 'AI 没有返回可用的推荐，请适当调整行程后重试。',
       })
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        set({ aiStatus: '已取消上一次 AI 请求。' })
+        return
+      }
       const msg = e instanceof Error ? e.message : String(e)
       set({ aiStatus: `请求失败：${msg}` })
       get().pushLog(
@@ -345,6 +351,7 @@ export const useTripStore = create<TripState & TripActions>((set, get) => ({
   scheduleAiRefresh: () => {
     const t = get().aiRefreshTimer
     if (t) clearTimeout(t)
+    abortPendingAiRequest()
     set({ aiStatus: '行程有改动，将自动更新推荐…' })
     const timer = setTimeout(() => {
       get().requestAiRecommendations('all')
@@ -420,14 +427,7 @@ export const useTripStore = create<TripState & TripActions>((set, get) => ({
     const keywords = s.amapKeywords.trim() || '景点'
     get().pushLog(`正在请求高德 POI：${cityName} / ${keywords}...`)
     try {
-      const url = `/api/amap/poi?city=${encodeURIComponent(cityName)}&keywords=${encodeURIComponent(keywords)}&quality=normal`
-      const res = await fetch(url)
-      const data = await res.json()
-      if (!res.ok) {
-        get().pushLog(data.error || `请求失败 ${res.status}`, 'error')
-        return
-      }
-      const pois = data.pois || []
+      const pois = await fetchAmapPoiList({ city: cityName, keywords, quality: 'normal' })
       if (!pois.length) {
         get().pushLog('高德未返回结果，可换关键词或城市。', 'warn')
         return
@@ -486,28 +486,13 @@ export const useTripStore = create<TripState & TripActions>((set, get) => ({
     const trip = collectTripContext(get)
     get().pushLog(`正在让 AI 帮你构建高德搜索条件：${natural}`)
     try {
-      const res = await fetch('/api/ai/poi-query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ naturalQuery: natural, cityName, trip }),
+      const queryResult = await fetchAiPoiQuery(natural, cityName, trip)
+      const pois = await fetchAmapPoiList({
+        city: cityName,
+        keywords: queryResult.keywords,
+        quality: queryResult.quality,
+        types: queryResult.types || undefined,
       })
-      const data = await res.json()
-      if (!res.ok) {
-        get().pushLog(data.error || `AI 解析失败 ${res.status}`, 'error')
-        return
-      }
-      const keywords = (data.keywords || '').trim() || '景点'
-      const types = (data.types || '').trim()
-      const quality = data.quality === 'high' ? 'high' : 'normal'
-      let url = `/api/amap/poi?city=${encodeURIComponent(cityName)}&keywords=${encodeURIComponent(keywords)}&quality=${encodeURIComponent(quality)}`
-      if (types) url += `&types=${encodeURIComponent(types)}`
-      const poiRes = await fetch(url)
-      const poiData = await poiRes.json()
-      if (!poiRes.ok) {
-        get().pushLog(poiData.error || `请求失败 ${poiRes.status}`, 'error')
-        return
-      }
-      const pois = poiData.pois || []
       if (!pois.length) {
         get().pushLog('高德未返回结果，可尝试调整描述。', 'warn')
         return
@@ -550,63 +535,65 @@ export const useTripStore = create<TripState & TripActions>((set, get) => ({
     const cityName = city.name
     get().pushLog(`正在为新城市「${cityName}」自动获取一批高德推荐景点候选...`)
     try {
-      const url = `/api/amap/poi?city=${encodeURIComponent(cityName)}&keywords=${encodeURIComponent('景点')}&types=110000&quality=high`
-      const res = await fetch(url)
-      const data = await res.json()
-      if (!res.ok) {
-        get().pushLog(data.error || `请求失败 ${res.status}`, 'warn')
-        return
-      }
-      const pois = data.pois || []
+      const pois = await fetchAmapPoiList({
+        city: cityName,
+        keywords: '景点',
+        types: '110000',
+        quality: 'high',
+      })
       if (!pois.length) {
         get().pushLog('自动获取高德景点失败：未返回任何结果。', 'warn')
         return
       }
       const top = pois.slice(0, 6)
-      const names = top.map((p: { name?: string }) => p.name).filter(Boolean).join(' / ')
-      const shouldAdd = window.confirm(
-        `为城市「${cityName}」找到了 ${top.length} 个高德推荐景点：\n\n${names}\n\n是否将它们加入景点池（之后可在景点池中删除不需要的）？`,
-      )
-      if (!shouldAdd) {
-        get().pushLog('已取消自动加入高德景点，你可以稍后在景点池中手动获取。')
-        return
-      }
-      let added = 0
-      const spots = [...get().spots]
-      for (const p of top) {
-        const loc = p.location ? String(p.location).split(',') : []
-        const lng = parseFloat(loc[0])
-        const lat = parseFloat(loc[1])
-        if (Number.isNaN(lat) || Number.isNaN(lng)) continue
-        const name = (p.name || '').trim()
-        if (!name) continue
-        if (isDuplicateSpot(spots, city.id, name, lat, lng)) continue
-        const address = (p.address || '').trim()
-        const type = (p.type || '').trim()
-        const rating = Number(p.biz_ext?.rating || p.rating || 0) || undefined
-        const metaParts: string[] = []
-        if (type) metaParts.push(type)
-        if (address) metaParts.push(address)
-        if (rating) metaParts.push(`评分约 ${rating}`)
-        spots.push({
-          id: uid('spot_amap_seed'),
-          cityId: city.id,
-          name,
-          location: { lat, lng },
-          innerTransport: metaParts.length ? metaParts.join(' · ') : undefined,
-        })
-        added++
-      }
-      set({ spots })
-      get().pushLog(
-        added
-          ? `已为城市「${cityName}」自动加入 ${added} 个来自高德的候选景点，可在景点池中进一步筛选。`
-          : '自动加入高德景点时未发现新的候选点（可能都已存在）。',
-      )
-      get().scheduleAiRefresh()
+      set({ autoSeedPending: { city, pois: top } })
     } catch (e) {
       get().pushLog(`为城市自动获取高德景点失败：${e instanceof Error ? e.message : e}`, 'error')
     }
+  },
+
+  confirmAutoSeed: () => {
+    const pending = get().autoSeedPending
+    if (!pending) return
+    const { city, pois } = pending
+    let added = 0
+    const spots = [...get().spots]
+    for (const p of pois) {
+      const loc = p.location ? String(p.location).split(',') : []
+      const lng = parseFloat(loc[0])
+      const lat = parseFloat(loc[1])
+      if (Number.isNaN(lat) || Number.isNaN(lng)) continue
+      const name = (p.name || '').trim()
+      if (!name) continue
+      if (isDuplicateSpot(spots, city.id, name, lat, lng)) continue
+      const address = (p.address || '').trim()
+      const type = (p.type || '').trim()
+      const rating = Number(p.biz_ext?.rating || p.rating || 0) || undefined
+      const metaParts: string[] = []
+      if (type) metaParts.push(type)
+      if (address) metaParts.push(address)
+      if (rating) metaParts.push(`评分约 ${rating}`)
+      spots.push({
+        id: uid('spot_amap_seed'),
+        cityId: city.id,
+        name,
+        location: { lat, lng },
+        innerTransport: metaParts.length ? metaParts.join(' · ') : undefined,
+      })
+      added++
+    }
+    set({ spots, autoSeedPending: null })
+    get().pushLog(
+      added
+        ? `已为城市「${city.name}」自动加入 ${added} 个来自高德的候选景点，可在景点池中进一步筛选。`
+        : '自动加入高德景点时未发现新的候选点（可能都已存在）。',
+    )
+    get().scheduleAiRefresh()
+  },
+
+  cancelAutoSeed: () => {
+    set({ autoSeedPending: null })
+    get().pushLog('已取消自动加入高德景点，你可以稍后在景点池中手动获取。')
   },
 
   extendDaySpotsByAI: async (dayId) => {
@@ -632,17 +619,7 @@ export const useTripStore = create<TripState & TripActions>((set, get) => ({
     const prompt = base + extra
     get().pushLog(`正在为第 ${day.dayIndex} 天（${city.name}）请求 AI 补充景点候选...`)
     try {
-      const res = await fetch('/api/ai/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        get().pushLog(data.error || `请求失败 ${res.status}`, 'error')
-        return
-      }
-      const sections = Array.isArray(data.sections) ? data.sections : []
+      const sections = await fetchAiRecommend(prompt)
       const spotSections = sections.filter((sec: AiSection) => sec.type === 'spots')
       if (!spotSections.length) {
         get().pushLog('AI 未返回可用的补充景点候选。', 'warn')
@@ -787,4 +764,21 @@ export const useTripStore = create<TripState & TripActions>((set, get) => ({
       '已根据测验结果生成旅行画像，并写入「旅行期望」，之后的 AI 推荐会参考这些偏好。',
     )
   },
-}))
+}),
+    {
+      name: 'trip-planner-storage',
+      partialize: (state) => ({
+        cities: state.cities,
+        spots: state.spots,
+        dailyPlans: state.dailyPlans,
+        tripTitle: state.tripTitle,
+        tripStart: state.tripStart,
+        tripEnd: state.tripEnd,
+        tripExpectation: state.tripExpectation,
+        tripType: state.tripType,
+        aiCityId: state.aiCityId,
+        aiBudget: state.aiBudget,
+      }),
+    },
+  ),
+)

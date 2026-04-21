@@ -25,13 +25,22 @@ export function MapPanel({
   className?: string
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<unknown>(null)
-  const cityMarkersRef = useRef<unknown[]>([])
-  const spotMarkersRef = useRef<unknown[]>([])
-  const routePolylinesRef = useRef<unknown[]>([])
-  const distanceLabelsRef = useRef<unknown[]>([])
-  const infoWindowRef = useRef<unknown>(null)
-  const [scriptReady, setScriptReady] = useState(false)
+  const mapRef = useRef<AMap.Map | null>(null)
+  const cityMarkersRef = useRef<AMap.Marker[]>([])
+  const spotMarkersRef = useRef<AMap.Marker[]>([])
+  const routePolylinesRef = useRef<AMap.Polyline[]>([])
+  const distanceLabelsRef = useRef<AMap.Text[]>([])
+  const infoWindowRef = useRef<AMap.InfoWindow | null>(null)
+  const [scriptReady, setScriptReady] = useState(() => !!window.AMap)
+  const amapKey = import.meta.env.VITE_AMAP_KEY || 'YOUR_AMAP_KEY'
+  const amapSecurityCode = import.meta.env.VITE_AMAP_SECURITY_CODE || ''
+  const amapKeyMissing = amapKey === 'YOUR_AMAP_KEY' || !amapKey.trim()
+
+  const [mapLoadError, setMapLoadError] = useState<string | null>(() =>
+    amapKeyMissing
+      ? '未配置 VITE_AMAP_KEY：请在 client/.env 中填写高德「Web 端」Key 并重启 Vite。'
+      : null,
+  )
   const [legend, setLegend] = useState<
     { key: string; color: string; label: string; dashed?: boolean }[]
   >([])
@@ -46,10 +55,10 @@ export function MapPanel({
   const pushLog = useTripStore((s) => s.pushLog)
 
   const drawRoutes = useCallback(
-    (map: any, focusDayId: string | null) => {
-      routePolylinesRef.current.forEach((p: any) => p.setMap(null))
+    (map: AMap.Map, focusDayId: string | null) => {
+      routePolylinesRef.current.forEach((p) => p.setMap(null))
       routePolylinesRef.current = []
-      distanceLabelsRef.current.forEach((t: any) => t.setMap(null))
+      distanceLabelsRef.current.forEach((t) => t.setMap(null))
       distanceLabelsRef.current = []
       const leg: { key: string; color: string; label: string; dashed?: boolean }[] = []
 
@@ -137,7 +146,7 @@ export function MapPanel({
 
       setLegend(leg)
 
-      cityMarkersRef.current.forEach((m: any) => m.setMap(null))
+      cityMarkersRef.current.forEach((m) => m.setMap(null))
       cityMarkersRef.current = []
       sortedCities.forEach((city) => {
         if (!city.location) return
@@ -147,13 +156,13 @@ export function MapPanel({
           map,
         })
         marker.on('click', () => {
-          ;(infoWindowRef.current as any)?.setContent(`<div>城市：${city.name}</div>`)
-          ;(infoWindowRef.current as any)?.open(map, marker.getPosition())
+          infoWindowRef.current?.setContent(`<div>城市：${city.name}</div>`)
+          infoWindowRef.current?.open(map, marker.getPosition())
         })
         cityMarkersRef.current.push(marker)
       })
 
-      spotMarkersRef.current.forEach((m: any) => m.setMap(null))
+      spotMarkersRef.current.forEach((m) => m.setMap(null))
       spotMarkersRef.current = []
       spots.forEach((spot) => {
         const marker = new AMap.Marker({
@@ -166,19 +175,19 @@ export function MapPanel({
           ? `<br/><a href="${spot.guideUrl}" target="_blank">攻略链接</a>`
           : ''
         marker.on('click', () => {
-          ;(infoWindowRef.current as any)?.setContent(
+          infoWindowRef.current?.setContent(
             `<div>景点：${spot.name}${spot.visitTimeText ? `<br/>时间：${spot.visitTimeText}` : ''}${inner}${guide}</div>`,
           )
-          ;(infoWindowRef.current as any)?.open(map, marker.getPosition())
+          infoWindowRef.current?.open(map, marker.getPosition())
         })
         spotMarkersRef.current.push(marker)
       })
 
-      const overlays = [
+      const overlays: AMap.Overlay[] = [
         ...cityMarkersRef.current,
         ...spotMarkersRef.current,
         ...routePolylinesRef.current,
-      ].filter(Boolean)
+      ]
       if (overlays.length) {
         map.setFitView(overlays)
       }
@@ -186,34 +195,81 @@ export function MapPanel({
     [cities, spots, dailyPlans],
   )
 
+  const reportMapError = useCallback(
+    (msg: string) => {
+      setMapLoadError(msg)
+      pushLog(msg, 'error')
+    },
+    [pushLog],
+  )
+
   useEffect(() => {
-    const key = import.meta.env.VITE_AMAP_KEY || 'YOUR_AMAP_KEY'
-    if (key === 'YOUR_AMAP_KEY') {
-      pushLog('请在 client/.env 设置 VITE_AMAP_KEY，否则地图无法加载。', 'warn')
+    if (amapKeyMissing) {
+      pushLog(
+        '未配置 VITE_AMAP_KEY：请在 client/.env 中填写高德「Web 端」Key 并重启 Vite。',
+        'error',
+      )
+      return
     }
+
+    if (amapSecurityCode) {
+      window._AMapSecurityConfig = { securityJsCode: amapSecurityCode }
+    } else if (import.meta.env.DEV) {
+      console.info(
+        '[Amap] 未设置 VITE_AMAP_SECURITY_CODE。若控制台为该 Key 启用了安全密钥，地图会失败，请在 client/.env 填写。',
+      )
+    }
+
+    if (window.AMap) {
+      return
+    }
+
+    const src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(amapKey)}&plugin=AMap.Geocoder`
+
     const script = document.createElement('script')
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${key}`
+    script.src = src
     script.async = true
-    script.onload = () => setScriptReady(true)
+    script.onload = () => {
+      if (!window.AMap) {
+        const msg =
+          '地图脚本已加载，但 window.AMap 不存在。多为 Key/安全密钥不匹配或控制台「服务平台」选错（须 Web 端 JS API）。'
+        reportMapError(msg)
+        return
+      }
+      setScriptReady(true)
+    }
+    script.onerror = () => {
+      const msg =
+        '地图脚本请求失败（网络、广告拦截、公司代理或 HTTPS 混合内容）。请打开浏览器开发者工具 → Network 查看 webapi.amap.com 是否被拦截。'
+      reportMapError(msg)
+    }
     document.body.appendChild(script)
     return () => {
+      script.onload = null
+      script.onerror = null
       script.remove()
     }
-  }, [pushLog])
+  }, [amapKey, amapKeyMissing, amapSecurityCode, pushLog, reportMapError])
 
   useEffect(() => {
-    if (!scriptReady || !containerRef.current || !(window as any).AMap) return
-    const AMap = (window as any).AMap
-    const map = new AMap.Map(containerRef.current, {
-      viewMode: '2D',
-      zoom: 4,
-      center: [110.0, 34.0],
-    })
+    if (!scriptReady || !containerRef.current || !window.AMap) return
+    let map: AMap.Map
+    try {
+      map = new window.AMap.Map(containerRef.current, {
+        viewMode: '2D',
+        zoom: 4,
+        center: [110.0, 34.0],
+      })
+    } catch (e) {
+      const msg = `地图初始化异常：${e instanceof Error ? e.message : String(e)}`
+      queueMicrotask(() => reportMapError(msg))
+      return
+    }
     mapRef.current = map
-    infoWindowRef.current = new AMap.InfoWindow({ offset: new AMap.Pixel(0, -30) })
-    AMap.plugin('AMap.Geocoder', () => {})
+    infoWindowRef.current = new window.AMap.InfoWindow({ offset: new window.AMap.Pixel(0, -30) })
+    window.AMap.plugin('AMap.Geocoder', () => {})
 
-    map.on('rightclick', (e: { lnglat: { getLat: () => number; getLng: () => number } }) => {
+    map.on('rightclick', (e: AMap.MapEvent) => {
       const lnglat = e.lnglat
       const lat = lnglat.getLat()
       const lng = lnglat.getLng()
@@ -221,29 +277,47 @@ export function MapPanel({
       pushLog(`已记录经纬度（可填入表单）：${lat.toFixed(4)}, ${lng.toFixed(4)}`)
     })
 
-    return () => {
-      if (typeof (map as any).destroy === 'function') {
-        ;(map as any).destroy()
+    const doResize = () => {
+      try {
+        if (typeof map.resize === 'function') map.resize()
+      } catch {
+        /* ignore */
       }
+    }
+    requestAnimationFrame(doResize)
+    setTimeout(doResize, 100)
+    setTimeout(doResize, 400)
+
+    const el = containerRef.current
+    const ro =
+      el &&
+      typeof ResizeObserver !== 'undefined' &&
+      new ResizeObserver(() => {
+        doResize()
+      })
+    if (el && ro) ro.observe(el)
+
+    return () => {
+      if (el && ro) ro.disconnect()
+      map.destroy()
       mapRef.current = null
     }
-  }, [scriptReady, pushLog, setPendingMapCoords])
+  }, [scriptReady, pushLog, setPendingMapCoords, reportMapError])
 
   useEffect(() => {
-    const map = mapRef.current as any
+    const map = mapRef.current
     if (!map) return
     drawRoutes(map, mapFocusDayId)
   }, [drawRoutes, mapFocusDayId, cities, spots, dailyPlans, mapRedrawNonce])
 
   const geocodeCity = useCallback(
     (city: City) => {
-      const map = mapRef.current as any
-      const AMap = (window as any).AMap
-      if (!map || !AMap?.Geocoder) {
+      const map = mapRef.current
+      if (!map || !window.AMap?.Geocoder) {
         pushLog(`当前环境不支持自动定位城市【${city.name}】的经纬度。`, 'warn')
         return
       }
-      const geocoder = new AMap.Geocoder({ city: '全国' })
+      const geocoder = new window.AMap.Geocoder({ city: '全国' })
       geocoder.getLocation(
         city.name,
         (status: string, result: { info: string; geocodes: { location: { lng: number; lat: number } }[] }) => {
@@ -253,7 +327,7 @@ export function MapPanel({
             pushLog(
               `已根据城市名自动定位：${city.name} -> (${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)})`,
             )
-            const m = mapRef.current as any
+            const m = mapRef.current
             if (m) drawRoutes(m, useTripStore.getState().mapFocusDayId)
           } else {
             pushLog(`无法根据城市名自动获取经纬度：${city.name}，请手动填写。`, 'warn')
@@ -265,7 +339,7 @@ export function MapPanel({
   )
 
   const redraw = useCallback(() => {
-    const m = mapRef.current as any
+    const m = mapRef.current
     if (m) drawRoutes(m, useTripStore.getState().mapFocusDayId)
   }, [drawRoutes])
 
@@ -275,8 +349,8 @@ export function MapPanel({
     <MapContext.Provider value={api}>
       <div className={clsx('flex min-h-0 flex-1 gap-4', className)}>
         <div className="w-[min(340px,34vw)] shrink-0">{sidebar}</div>
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200/70 bg-white shadow-md ring-1 ring-slate-900/[0.04]">
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-[11px] text-slate-600">
+        <div className="relative flex min-h-0 min-h-[min(360px,calc(100dvh-12rem))] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200/70 bg-white shadow-md ring-1 ring-slate-900/[0.04]">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-[11px] text-slate-600">
             {legend.map((item) => (
               <div
                 key={item.key}
@@ -293,18 +367,23 @@ export function MapPanel({
               </div>
             ))}
           </div>
-          <div className="relative min-h-[280px] w-full flex-1">
-            <div ref={containerRef} className="absolute inset-0" />
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            {mapLoadError && (
+              <div className="absolute inset-0 z-[5] flex flex-col justify-center gap-2 overflow-auto bg-amber-50/95 p-4 text-left text-xs leading-relaxed text-amber-950 ring-1 ring-amber-200">
+                <p className="font-semibold">地图未就绪</p>
+                <p className="whitespace-pre-wrap">{mapLoadError}</p>
+                <p className="text-amber-800/90">
+                  排查：① 浏览器 F12 → Console / Network 是否有高德报错（如 INVALID_USER_KEY、USERKEY_PLAT_NOMATCH）②
+                  控制台 Key 须为「Web 端」，且与 VITE_AMAP_KEY 一致；启用安全密钥时须配置 VITE_AMAP_SECURITY_CODE ③
+                  Key 安全设置里放行访问来源（如 localhost、127.0.0.1）④ 修改 client/.env 后必须重启 npm run dev
+                </p>
+              </div>
+            )}
+            <div ref={containerRef} className="min-h-0 w-full flex-1" />
             <AiCard />
           </div>
         </div>
       </div>
     </MapContext.Provider>
   )
-}
-
-declare global {
-  interface Window {
-    AMap: any
-  }
 }

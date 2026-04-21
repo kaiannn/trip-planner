@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMapApi } from '../map/MapContext'
 import { useTripStore } from '../store/tripStore'
 import { Btn, Field, Panel, inputClass } from './ui'
@@ -11,6 +11,7 @@ export function LeftColumn({ className }: { className?: string }) {
   const aiCityId = useTripStore((s) => s.aiCityId)
   const aiBudget = useTripStore((s) => s.aiBudget)
   const pendingMapCoords = useTripStore((s) => s.pendingMapCoords)
+  const autoSeedPending = useTripStore((s) => s.autoSeedPending)
   const setPendingMapCoords = useTripStore((s) => s.setPendingMapCoords)
   const addCity = useTripStore((s) => s.addCity)
   const moveCity = useTripStore((s) => s.moveCity)
@@ -21,27 +22,30 @@ export function LeftColumn({ className }: { className?: string }) {
   const setDayPlanOpen = useTripStore((s) => s.setDayPlanOpen)
   const scheduleAiRefresh = useTripStore((s) => s.scheduleAiRefresh)
   const autoSeedPoisForCity = useTripStore((s) => s.autoSeedPoisForCity)
+  const confirmAutoSeed = useTripStore((s) => s.confirmAutoSeed)
+  const cancelAutoSeed = useTripStore((s) => s.cancelAutoSeed)
   const mapApi = useMapApi()
 
   const [cityName, setCityName] = useState('')
   const [cityLat, setCityLat] = useState('')
   const [cityLng, setCityLng] = useState('')
+  const [appliedCoordsKey, setAppliedCoordsKey] = useState<object | null>(null)
 
-  useEffect(() => {
-    if (pendingMapCoords) {
-      setCityLat(pendingMapCoords.lat.toFixed(6))
-      setCityLng(pendingMapCoords.lng.toFixed(6))
-    }
-  }, [pendingMapCoords])
+  const coordsObj = pendingMapCoords
+  if (coordsObj && coordsObj !== appliedCoordsKey) {
+    setAppliedCoordsKey(coordsObj)
+    setCityLat(coordsObj.lat.toFixed(6))
+    setCityLng(coordsObj.lng.toFixed(6))
+  }
 
   const sortedCities = useMemo(
     () => cities.slice().sort((a, b) => a.order - b.order),
     [cities],
   )
 
-  useEffect(() => {
-    if (!aiCityId && cities[0]) setAiCityId(cities[0].id)
-  }, [aiCityId, cities, setAiCityId])
+  if (!aiCityId && cities[0]) {
+    setAiCityId(cities[0].id)
+  }
 
   const daySummary = useMemo(() => {
     if (!dailyPlans.length) return '尚未创建任何每日行程。'
@@ -130,6 +134,24 @@ export function LeftColumn({ className }: { className?: string }) {
             </li>
           ))}
         </ul>
+        {autoSeedPending && (
+          <div className="mt-2 rounded-lg border border-teal-200 bg-teal-50 p-2 text-[12px] text-slate-700">
+            <p className="mb-1.5 font-medium">
+              为「{autoSeedPending.city.name}」找到了 {autoSeedPending.pois.length} 个推荐景点：
+            </p>
+            <p className="mb-2 text-slate-500">
+              {autoSeedPending.pois.map((p) => p.name).filter(Boolean).join(' / ')}
+            </p>
+            <div className="flex gap-1.5">
+              <Btn variant="primary" className="!py-1 !text-xs" onClick={confirmAutoSeed}>
+                加入景点池
+              </Btn>
+              <Btn variant="ghost" className="!py-1 !text-xs" onClick={cancelAutoSeed}>
+                跳过
+              </Btn>
+            </div>
+          </div>
+        )}
       </Panel>
 
       <Panel title="景点池">

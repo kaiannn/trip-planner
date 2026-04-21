@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTripStore } from '../../store/tripStore'
 import { Btn, Field } from '../ui'
 
@@ -39,22 +39,22 @@ export function SpotPoolModal() {
   const [videoUrl, setVideoUrl] = useState('')
   const [xhs, setXhs] = useState('')
 
-  useEffect(() => {
-    if (open && sortedCities.length && !amapCityName) {
-      setAmapCityName(sortedCities[0].name)
-    }
-  }, [open, sortedCities, amapCityName, setAmapCityName])
+  const [appliedCoordsKey, setAppliedCoordsKey] = useState<object | null>(null)
 
-  useEffect(() => {
-    if (pendingMapCoords && open) {
-      setSpotLat(pendingMapCoords.lat.toFixed(6))
-      setSpotLng(pendingMapCoords.lng.toFixed(6))
-    }
-  }, [pendingMapCoords, open])
+  if (open && sortedCities.length && !amapCityName) {
+    setAmapCityName(sortedCities[0].name)
+  }
 
-  useEffect(() => {
-    if (sortedCities.length && !spotCityId) setSpotCityId(sortedCities[0].id)
-  }, [sortedCities, spotCityId])
+  const coordsObj = pendingMapCoords
+  if (coordsObj && open && coordsObj !== appliedCoordsKey) {
+    setAppliedCoordsKey(coordsObj)
+    setSpotLat(coordsObj.lat.toFixed(6))
+    setSpotLng(coordsObj.lng.toFixed(6))
+  }
+
+  if (sortedCities.length && !spotCityId) {
+    setSpotCityId(sortedCities[0].id)
+  }
 
   const filtered = useMemo(() => {
     if (!poolCityFilter) return spots
