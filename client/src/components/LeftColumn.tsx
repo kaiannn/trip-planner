@@ -10,9 +10,7 @@ export function LeftColumn({ className }: { className?: string }) {
   const dailyPlans = useTripStore((s) => s.dailyPlans)
   const aiCityId = useTripStore((s) => s.aiCityId)
   const aiBudget = useTripStore((s) => s.aiBudget)
-  const pendingMapCoords = useTripStore((s) => s.pendingMapCoords)
   const autoSeedPending = useTripStore((s) => s.autoSeedPending)
-  const setPendingMapCoords = useTripStore((s) => s.setPendingMapCoords)
   const addCity = useTripStore((s) => s.addCity)
   const moveCity = useTripStore((s) => s.moveCity)
   const deleteCity = useTripStore((s) => s.deleteCity)
@@ -21,22 +19,11 @@ export function LeftColumn({ className }: { className?: string }) {
   const setSpotPoolOpen = useTripStore((s) => s.setSpotPoolOpen)
   const setDayPlanOpen = useTripStore((s) => s.setDayPlanOpen)
   const scheduleAiRefresh = useTripStore((s) => s.scheduleAiRefresh)
-  const autoSeedPoisForCity = useTripStore((s) => s.autoSeedPoisForCity)
   const confirmAutoSeed = useTripStore((s) => s.confirmAutoSeed)
   const cancelAutoSeed = useTripStore((s) => s.cancelAutoSeed)
   const mapApi = useMapApi()
 
   const [cityName, setCityName] = useState('')
-  const [cityLat, setCityLat] = useState('')
-  const [cityLng, setCityLng] = useState('')
-  const [appliedCoordsKey, setAppliedCoordsKey] = useState<object | null>(null)
-
-  const coordsObj = pendingMapCoords
-  if (coordsObj && coordsObj !== appliedCoordsKey) {
-    setAppliedCoordsKey(coordsObj)
-    setCityLat(coordsObj.lat.toFixed(6))
-    setCityLng(coordsObj.lng.toFixed(6))
-  }
 
   const sortedCities = useMemo(
     () => cities.slice().sort((a, b) => a.order - b.order),
@@ -68,43 +55,14 @@ export function LeftColumn({ className }: { className?: string }) {
               placeholder="例如：东京"
             />
           </Field>
-          <Field label="纬度（可选）">
-            <input
-              type="number"
-              step="0.000001"
-              className={inputClass}
-              value={cityLat}
-              onChange={(e) => setCityLat(e.target.value)}
-            />
-          </Field>
-          <Field label="经度（可选）">
-            <input
-              type="number"
-              step="0.000001"
-              className={inputClass}
-              value={cityLng}
-              onChange={(e) => setCityLng(e.target.value)}
-            />
-          </Field>
           <Btn
             variant="secondary"
             className="self-end"
             onClick={() => {
               if (!cityName.trim()) return
-              const lat = parseFloat(cityLat)
-              const lng = parseFloat(cityLng)
-              const city = addCity(
-                cityName,
-                Number.isNaN(lat) ? undefined : lat,
-                Number.isNaN(lng) ? undefined : lng,
-              )
+              const city = addCity(cityName)
               setCityName('')
-              setPendingMapCoords(null)
-              if (!city.location) {
-                mapApi?.geocodeCity(city)
-              } else {
-                autoSeedPoisForCity(city)
-              }
+              mapApi?.geocodeCity(city)
               scheduleAiRefresh()
             }}
           >

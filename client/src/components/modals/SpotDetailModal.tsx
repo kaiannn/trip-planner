@@ -1,5 +1,5 @@
 import { useTripStore } from '../../store/tripStore'
-import { Btn } from '../ui'
+import { Btn, SpotImg } from '../ui'
 
 export function SpotDetailModal() {
   const spot = useTripStore((s) => s.spotDetailSpot)
@@ -62,9 +62,14 @@ export function SpotDetailModal() {
           </div>
         </header>
         <div className="space-y-4 p-4 text-sm">
-          {spot.imageUrl && (
-            <img src={spot.imageUrl} alt="" className="max-h-64 w-full rounded-xl object-cover" />
-          )}
+          {spot.imageUrl ? (
+            <SpotImg
+              src={spot.imageUrl}
+              alt={spot.name}
+              aspectClassName="max-h-64"
+              className="rounded-xl"
+            />
+          ) : null}
           <section>
             <h4 className="text-xs font-semibold uppercase text-slate-400">介绍</h4>
             <p className="mt-1 whitespace-pre-wrap text-slate-700">{spot.description || '暂无介绍'}</p>

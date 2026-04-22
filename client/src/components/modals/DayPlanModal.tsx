@@ -1,7 +1,92 @@
 import { useMemo, useState } from 'react'
 import clsx from 'clsx'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+  DragOverlay,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useTripStore } from '../../store/tripStore'
 import { Btn, Field } from '../ui'
+
+interface SortableSpotItemProps {
+  id: string
+  name: string
+  onRemove: () => void
+}
+
+function SortableSpotItem({ id, name, onRemove }: SortableSpotItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={clsx(
+        'flex items-center justify-between rounded-lg border bg-slate-50 px-2 py-1.5 text-sm',
+        isDragging
+          ? 'border-teal-300 bg-teal-50 opacity-80 shadow-md ring-2 ring-teal-400'
+          : 'border-slate-100 hover:border-slate-200',
+      )}
+    >
+      <span className="flex items-center gap-2">
+        <button
+          type="button"
+          className="cursor-grab touch-none select-none text-slate-400 hover:text-slate-600 active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            className="h-4 w-4"
+          >
+            <path
+              fillRule="evenodd"
+              d="M7.48 8.78a.75.75 0 01-.53.22H4.75a.75.75 0 010-1.5h2.2a.75.75 0 01.53.22l.97.97a.75.75 0 010 1.06l-1.72 1.72a.75.75 0 01-1.06 0L3.22 8.53a.75.75 0 010-1.06l1.72-1.72a.75.75 0 011.06 0l.97.97a.75.75 0 01.53.22zM12.52 8.78a.75.75 0 01.53-.22h2.2a.75.75 0 010 1.5h-2.2a.75.75 0 01-.53-.22l-.97-.97a.75.75 0 010-1.06l1.72-1.72a.75.75 0 011.06 0l1.72 1.72a.75.75 0 010 1.06l-1.72 1.72a.75.75 0 01-1.06 0l-.97-.97a.75.75 0 01-.53-.22zM7.48 14.78a.75.75 0 01-.53.22H4.75a.75.75 0 010-1.5h2.2a.75.75 0 01.53.22l.97.97a.75.75 0 010 1.06l-1.72 1.72a.75.75 0 01-1.06 0L3.22 14.53a.75.75 0 010-1.06l1.72-1.72a.75.75 0 011.06 0l.97.97a.75.75 0 01.53.22zM12.52 14.78a.75.75 0 01.53-.22h2.2a.75.75 0 010 1.5h-2.2a.75.75 0 01-.53-.22l-.97-.97a.75.75 0 010-1.06l1.72-1.72a.75.75 0 011.06 0l1.72 1.72a.75.75 0 010 1.06l-1.72 1.72a.75.75 0 01-1.06 0l-.97-.97a.75.75 0 01-.53-.22z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </button>
+        <span className={clsx(isDragging && 'font-medium text-teal-700')}>
+          {name || '已删除'}
+        </span>
+      </span>
+      <Btn
+        variant="ghost"
+        className="!px-2 !py-0.5 text-xs text-red-600 hover:bg-red-50"
+        onClick={onRemove}
+      >
+        移除
+      </Btn>
+    </li>
+  )
+}
 
 export function DayPlanModal() {
   const open = useTripStore((s) => s.dayPlanOpen)
@@ -32,6 +117,18 @@ export function DayPlanModal() {
   const [spotOrder, setSpotOrder] = useState<string[]>([])
   const [daySpotPick, setDaySpotPick] = useState('')
   const [activeDayId, setActiveDayId] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
 
   if (sortedCities.length && !cityId) {
     setCityId(sortedCities[0].id)
@@ -55,6 +152,32 @@ export function DayPlanModal() {
     setActiveDayId(dayId)
     setMapFocusDayId(dayId)
   }
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string)
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    setActiveId(null)
+
+    if (over && active.id !== over.id) {
+      const oldIndex = spotOrder.indexOf(active.id as string)
+      const newIndex = spotOrder.indexOf(over.id as string)
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrder = [...spotOrder]
+        const [removed] = newOrder.splice(oldIndex, 1)
+        newOrder.splice(newIndex, 0, removed)
+        setSpotOrder(newOrder)
+      }
+    }
+  }
+
+  const activeSpot = useMemo(
+    () => spots.find((s) => s.id === activeId),
+    [spots, activeId],
+  )
 
   if (!open) return null
 
@@ -180,53 +303,46 @@ export function DayPlanModal() {
               加入当天
             </Btn>
           </div>
-          <h3 className="mt-4 text-sm font-semibold text-slate-800">当天顺序</h3>
-          <ul className="mt-2 space-y-1">
-            {spotOrder.map((sid, index) => {
-              const sp = spots.find((s) => s.id === sid)
-              return (
-                <li
-                  key={sid}
-                  className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5 text-sm"
-                >
-                  <span>{sp?.name || '已删除'}</span>
-                  <span className="flex gap-1">
-                    <Btn
-                      variant="ghost"
-                      className="!px-2 !py-0.5 text-xs"
-                      onClick={() => {
-                        if (index === 0) return
-                        const next = [...spotOrder]
-                        ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
-                        setSpotOrder(next)
-                      }}
-                    >
-                      ↑
-                    </Btn>
-                    <Btn
-                      variant="ghost"
-                      className="!px-2 !py-0.5 text-xs"
-                      onClick={() => {
-                        if (index === spotOrder.length - 1) return
-                        const next = [...spotOrder]
-                        ;[next[index + 1], next[index]] = [next[index], next[index + 1]]
-                        setSpotOrder(next)
-                      }}
-                    >
-                      ↓
-                    </Btn>
-                    <Btn
-                      variant="ghost"
-                      className="!px-2 !py-0.5 text-xs text-red-600"
-                      onClick={() => setSpotOrder(spotOrder.filter((_, i) => i !== index))}
-                    >
-                      移除
-                    </Btn>
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
+          <h3 className="mt-4 text-sm font-semibold text-slate-800">
+            当天顺序 <span className="text-xs font-normal text-slate-500">（拖拽调整顺序）</span>
+          </h3>
+          {spotOrder.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-400">从上方景点池添加或拖拽景点到此处</p>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={spotOrder} strategy={verticalListSortingStrategy}>
+                <ul className="mt-2 space-y-1">
+                  {spotOrder.map((sid) => {
+                    const sp = spots.find((s) => s.id === sid)
+                    return (
+                      <SortableSpotItem
+                        key={sid}
+                        id={sid}
+                        name={sp?.name || '已删除'}
+                        onRemove={() => setSpotOrder(spotOrder.filter((id) => id !== sid))}
+                      />
+                    )
+                  })}
+                </ul>
+              </SortableContext>
+              <DragOverlay>
+                {activeSpot ? (
+                  <li className="flex items-center justify-between rounded-lg border border-teal-300 bg-teal-50 px-2 py-1.5 text-sm shadow-lg ring-2 ring-teal-400">
+                    <span className="flex items-center gap-2">
+                      <span className="cursor-grab text-slate-400">⋮⋮</span>
+                      <span className="font-medium text-teal-700">{activeSpot.name}</span>
+                    </span>
+                    <span className="text-xs text-slate-400">移动中</span>
+                  </li>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+          )}
           <div className="mt-4 flex flex-wrap gap-2">
             <Btn
               variant="primary"

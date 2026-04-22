@@ -203,11 +203,15 @@ export const useTripStore = create<TripState & TripActions>()(
   },
 
   updateCityLocation: (cityId, lat, lng) => {
+    const city = get().cities.find((c) => c.id === cityId)
     set((s) => ({
       cities: s.cities.map((c) =>
         c.id === cityId ? { ...c, location: { lat, lng } } : c,
       ),
     }))
+    if (city) {
+      void get().autoSeedPoisForCity({ ...city, location: { lat, lng } })
+    }
   },
 
   moveCity: (cityId, delta) => {

@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import type { ButtonHTMLAttributes } from 'react'
+import { useState, type ButtonHTMLAttributes } from 'react'
 
 /** 统一输入框：与主流产品后台类似的浅边框 + 聚焦环 */
 export const inputClass =
@@ -50,6 +50,61 @@ export function Panel({
       </h2>
       {children}
     </section>
+  )
+}
+
+function SpotImagePlaceholder({ className }: { className?: string }) {
+  return (
+    <div
+      className={clsx(
+        'flex flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-slate-100 to-slate-200',
+        className,
+      )}
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 48 48"
+        className="h-8 w-8 text-slate-300"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M6 36 L16 22 L23 31 L30 24 L42 36 Z" />
+        <circle cx="34" cy="16" r="4" />
+        <rect x="4" y="8" width="40" height="32" rx="4" />
+      </svg>
+      <span className="text-[10px] text-slate-400">暂无图片</span>
+    </div>
+  )
+}
+
+export function SpotImg({
+  src,
+  alt = '',
+  className,
+  aspectClassName = 'aspect-[4/3]',
+}: {
+  src?: string | null
+  alt?: string
+  className?: string
+  aspectClassName?: string
+}) {
+  const [failed, setFailed] = useState(false)
+  const show = src && !failed
+  return show ? (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      className={clsx('w-full object-cover', aspectClassName, className)}
+      onError={() => setFailed(true)}
+    />
+  ) : (
+    <SpotImagePlaceholder className={clsx('w-full', aspectClassName, className)} />
   )
 }
 
