@@ -23,6 +23,8 @@
   <img src="docs/screenshots/01-main.png" alt="Trip Planner 主界面" width="900" />
 </p>
 
+> **English:** AI-driven trip planner. Describe your trip in natural language and it generates cities, points of interest, and daily routes by combining a DeepSeek/OpenAI-compatible LLM with the AMap (Gaode) POI database. React 19 + Vite frontend, Express backend. Skip to [Quickstart](#-快速开始) — the commands are the same in any language.
+
 ## ✨ 功能亮点
 
 - 🗺️ **地图可视化** — 基于高德地图 JS API 2.0，城市标记、景点标注、每日路线连线一目了然
@@ -209,6 +211,28 @@ AI 返回标准 JSON 格式，包含 `spots`（景点）、`lodging`（住宿）
 两条 API 职责不同，互不干扰。
 
 </details>
+
+## 📦 部署 / Deployment
+
+This app has a client (static SPA) + a server (Express proxy for AMap + LLM). A few deployment shapes work:
+
+### Option A: Single-service on Railway / Render (simplest)
+
+The Express server can serve the built client as static files (`npm run build` produces `client/dist/`; `server.js` already serves it when `NODE_ENV=production`). Deploy one service:
+
+- **Build command:** `npm install && cd client && npm install && npm run build && cd ..`
+- **Start command:** `NODE_ENV=production npm start`
+- **Required env vars:** `LLM_API_KEY`, `AMAP_KEY`, `VITE_AMAP_KEY` (for the client build), `CORS_ORIGINS` (your deployed domain)
+
+### Option B: Vercel (frontend) + Railway (backend)
+
+- Deploy `client/` as a Vercel project (`VITE_AMAP_KEY` as env var, build command `npm run build`, output `dist`)
+- Deploy the root as a Railway service for the Express API
+- Set `CORS_ORIGINS` on the backend to your Vercel URL
+
+### Don't commit
+
+Confirm `.env` and `client/.env` stay in `.gitignore`. Never put real AMap / LLM keys in a commit — use the hosting platform's env-var UI.
 
 ## 📄 License
 
