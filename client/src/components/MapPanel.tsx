@@ -156,7 +156,9 @@ export function MapPanel({
           map,
         })
         marker.on('click', () => {
-          infoWindowRef.current?.setContent(`<div>城市：${city.name}</div>`)
+          const content = document.createElement('div')
+          content.textContent = `城市：${city.name}`
+          infoWindowRef.current?.setContent(content)
           infoWindowRef.current?.open(map, marker.getPosition())
         })
         cityMarkersRef.current.push(marker)
@@ -170,14 +172,32 @@ export function MapPanel({
           title: spot.name,
           map,
         })
-        const inner = spot.innerTransport ? `<br/>交通：${spot.innerTransport}` : ''
-        const guide = spot.guideUrl
-          ? `<br/><a href="${spot.guideUrl}" target="_blank">攻略链接</a>`
-          : ''
         marker.on('click', () => {
-          infoWindowRef.current?.setContent(
-            `<div>景点：${spot.name}${spot.visitTimeText ? `<br/>时间：${spot.visitTimeText}` : ''}${inner}${guide}</div>`,
-          )
+          const content = document.createElement('div')
+          const nameDiv = document.createElement('div')
+          nameDiv.textContent = `景点：${spot.name}`
+          content.appendChild(nameDiv)
+          if (spot.visitTimeText) {
+            const t = document.createElement('div')
+            t.textContent = `时间：${spot.visitTimeText}`
+            content.appendChild(t)
+          }
+          if (spot.innerTransport) {
+            const t = document.createElement('div')
+            t.textContent = `交通：${spot.innerTransport}`
+            content.appendChild(t)
+          }
+          if (spot.guideUrl) {
+            const a = document.createElement('a')
+            a.href = spot.guideUrl
+            a.target = '_blank'
+            a.rel = 'noopener noreferrer'
+            a.textContent = '攻略链接'
+            const wrap = document.createElement('div')
+            wrap.appendChild(a)
+            content.appendChild(wrap)
+          }
+          infoWindowRef.current?.setContent(content)
           infoWindowRef.current?.open(map, marker.getPosition())
         })
         spotMarkersRef.current.push(marker)
