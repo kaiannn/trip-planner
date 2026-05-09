@@ -115,6 +115,57 @@ declare namespace AMap {
     ): void
   }
 
+  interface AutoCompleteTip {
+    id?: string
+    name: string
+    district?: string
+    adcode?: string
+    address?: string | string[]
+    location?: { lng: number; lat: number } | string
+    typecode?: string
+  }
+
+  interface AutoCompleteResult {
+    info: string
+    count?: number
+    tips: AutoCompleteTip[]
+  }
+
+  class AutoComplete {
+    constructor(opts?: { city?: string; citylimit?: boolean; datatype?: string })
+    search(
+      keyword: string,
+      callback: (status: string, result: AutoCompleteResult) => void,
+    ): void
+  }
+
+  interface PlaceSearchPoi {
+    id?: string
+    name: string
+    address?: string
+    location?: { lng: number; lat: number } | string
+    cityname?: string
+    pname?: string
+    adname?: string
+  }
+
+  interface PlaceSearchResult {
+    info: string
+    poiList?: { pois?: PlaceSearchPoi[] }
+  }
+
+  class PlaceSearch {
+    constructor(opts?: { city?: string; citylimit?: boolean; pageSize?: number })
+    getDetails(
+      id: string,
+      callback: (status: string, result: PlaceSearchResult) => void,
+    ): void
+    search(
+      keyword: string,
+      callback: (status: string, result: PlaceSearchResult) => void,
+    ): void
+  }
+
   function plugin(name: string | string[], callback: () => void): void
 }
 

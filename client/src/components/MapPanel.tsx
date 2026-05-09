@@ -360,7 +360,7 @@ export function MapPanel({
       return
     }
 
-    const src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(amapKey)}&plugin=AMap.Geocoder,AMap.Driving`
+    const src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(amapKey)}&plugin=AMap.Geocoder,AMap.Driving,AMap.AutoComplete,AMap.PlaceSearch`
 
     const script = document.createElement('script')
     script.src = src
@@ -403,7 +403,10 @@ export function MapPanel({
     }
     mapRef.current = map
     infoWindowRef.current = new window.AMap.InfoWindow({ offset: new window.AMap.Pixel(0, -30) })
-    window.AMap.plugin(['AMap.Geocoder', 'AMap.Driving'], () => {})
+    window.AMap.plugin(
+      ['AMap.Geocoder', 'AMap.Driving', 'AMap.AutoComplete', 'AMap.PlaceSearch'],
+      () => {},
+    )
 
     map.on('rightclick', (e: AMap.MapEvent) => {
       const lnglat = e.lnglat
