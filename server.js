@@ -137,6 +137,184 @@ app.post('/api/ai/recommend', async (req, res) => {
   }
 });
 
+/**
+ * SSE streaming variant of /api/ai/recommend.
+ *
+ * Events emitted (each as: `data: {json}\n\n`):
+ *   {type:"progress", bytes, text}   — fired every chunk with the
+ *                                      full accumulated text so far
+ *   {type:"sections", sections}      — fired whenever more complete
+ *                                      section objects can be extracted
+ *   {type:"done", sections}          — final payload on successful completion
+ *   {type:"error", error}            — on any failure
+ */
+app.post('/api/ai/recommend/stream', async (req, res) => {
+  const { prompt } = req.body || {};
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering
+  res.flushHeaders?.();
+
+  const send = (obj) => {
+    res.write(`data: ${JSON.stringify(obj)}\n\n`);
+  };
+  // One pre-flight comment so proxies commit to streaming immediately.
+  res.write(': ok\n\n');
+
+  const abortCtl = new AbortController();
+  req.on('close', () => abortCtl.abort());
+
+  try {
+    if (!prompt || typeof prompt !== 'string') {
+      send({ type: 'error', error: '请求体中缺少 prompt 字段。' });
+      return res.end();
+    }
+    const llmKey = getLlmKey(req);
+    if (!llmKey) {
+      send({
+        type: 'error',
+        error:
+          '未配置 LLM API Key。请在设置中填写，或在服务端 .env 中配置 LLM_API_KEY。',
+      });
+      return res.end();
+    }
+
+    const url = `${LLM_BASE_URL.replace(/\/$/, '')}/chat/completions`;
+    const body = {
+      model: LLM_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.4,
+      response_format: { type: 'json_object' },
+      stream: true,
+    };
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${llmKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: abortCtl.signal,
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error('[LLM STREAM ERROR]', resp.status, text);
+      send({
+        type: 'error',
+        error: `LLM 请求失败：${resp.status}`,
+      });
+      return res.end();
+    }
+
+    let accumulated = '';
+    let lastSectionsCount = 0;
+    let sseBuffer = '';
+
+    const emitSectionsIfNew = () => {
+      // Heuristic: grab everything between `"sections":[` and the matching
+      // `]` if the JSON is already balanced so far. We only parse when a
+      // new complete object `},` appeared since the last emit, to keep CPU
+      // negligible. Invalid-JSON extractions are silently dropped.
+      const idx = accumulated.indexOf('"sections"');
+      if (idx < 0) return;
+      const openIdx = accumulated.indexOf('[', idx);
+      if (openIdx < 0) return;
+      let depth = 0;
+      let endIdx = -1;
+      for (let i = openIdx; i < accumulated.length; i++) {
+        const ch = accumulated[i];
+        if (ch === '[') depth++;
+        else if (ch === ']') {
+          depth--;
+          if (depth === 0) {
+            endIdx = i;
+            break;
+          }
+        }
+      }
+      // When the array isn't closed yet, try to parse what we have by
+      // appending a synthetic ']' after the last complete `}`.
+      let candidate;
+      if (endIdx >= 0) {
+        candidate = accumulated.slice(openIdx, endIdx + 1);
+      } else {
+        // find last `}` — everything before it may form a valid array.
+        const lastClose = accumulated.lastIndexOf('}');
+        if (lastClose <= openIdx) return;
+        candidate = accumulated.slice(openIdx, lastClose + 1) + ']';
+      }
+      try {
+        const arr = JSON.parse(candidate);
+        if (Array.isArray(arr) && arr.length > lastSectionsCount) {
+          lastSectionsCount = arr.length;
+          send({ type: 'sections', sections: arr });
+        }
+      } catch {
+        // partial — wait for more chunks
+      }
+    };
+
+    for await (const chunk of resp.body) {
+      sseBuffer += chunk.toString('utf8');
+      // SSE frames are terminated by double newlines.
+      let nl;
+      while ((nl = sseBuffer.indexOf('\n\n')) >= 0) {
+        const frame = sseBuffer.slice(0, nl);
+        sseBuffer = sseBuffer.slice(nl + 2);
+        // One frame can contain multiple `data:` lines; concatenate them.
+        const lines = frame.split('\n');
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload || payload === '[DONE]') continue;
+          try {
+            const obj = JSON.parse(payload);
+            const delta = obj.choices?.[0]?.delta?.content || '';
+            if (delta) {
+              accumulated += delta;
+              send({ type: 'progress', bytes: accumulated.length });
+              emitSectionsIfNew();
+            }
+          } catch {
+            // skip malformed chunk
+          }
+        }
+      }
+    }
+
+    // Final parse of the fully accumulated JSON.
+    let finalSections = [];
+    try {
+      const parsed = JSON.parse(accumulated || '{}');
+      if (Array.isArray(parsed.sections)) finalSections = parsed.sections;
+    } catch (e) {
+      console.error('[STREAM PARSE ERROR]', e, accumulated.slice(0, 500));
+      send({
+        type: 'error',
+        error: '模型输出未能解析为完整 JSON。',
+      });
+      return res.end();
+    }
+
+    send({ type: 'done', sections: finalSections });
+    res.end();
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      return res.end();
+    }
+    console.error('[STREAM API ERROR]', e);
+    try {
+      send({ type: 'error', error: e.message || '服务器内部错误' });
+    } catch {
+      /* socket already closed */
+    }
+    res.end();
+  }
+});
+
 app.get('/api/amap/poi', async (req, res) => {
   try {
     const { city, keywords, types, page = 1, quality } = req.query || {};

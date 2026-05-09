@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import { buildAiPrompt, type TripContextPayload } from '../lib/aiPrompt'
 import { buildTripProfileFromTags } from '../lib/tripProfile'
 import { isDuplicateSpot } from '../lib/geo'
-import { fetchAiRecommend, fetchAiPoiQuery, abortPendingAiRequest } from '../api/ai'
+import { fetchAiRecommend, streamAiRecommend, fetchAiPoiQuery, abortPendingAiRequest } from '../api/ai'
 import { fetchAmapPoiList, type AmapPoi } from '../api/amap'
 import type {
   AiFocus,
@@ -320,15 +320,30 @@ export const useTripStore = create<TripState & TripActions>()(
     const trip = collectTripContext(get)
     const prompt = buildAiPrompt({ trip, focusCityId, budgetPerDay, focus })
     set({
-      aiStatus: '正在向后端请求 AI 推荐...',
+      aiStatus: '正在向后端请求 AI 推荐…',
       aiPromptText: prompt,
       aiSections: [],
     })
     try {
-      const sections = await fetchAiRecommend(prompt)
+      const finalSections = await streamAiRecommend(prompt, {
+        onSections: (sections) => {
+          // Render partial sections as they arrive.
+          set({
+            aiSections: sections,
+            aiStatus: `AI 正在生成…（已返回 ${sections.length} 条）`,
+          })
+        },
+        onProgress: (bytes) => {
+          // Only update status when there are no sections yet, so the
+          // "X 条" count isn't clobbered by raw byte counts.
+          if (!get().aiSections.length) {
+            set({ aiStatus: `AI 正在生成…（${bytes} 字）` })
+          }
+        },
+      })
       set({
-        aiSections: sections,
-        aiStatus: sections.length
+        aiSections: finalSections,
+        aiStatus: finalSections.length
           ? '已根据当前行程生成 AI 推荐。'
           : 'AI 没有返回可用的推荐，请适当调整行程后重试。',
       })
