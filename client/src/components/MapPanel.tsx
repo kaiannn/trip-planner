@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { AiCard } from './AiCard'
 import { MapContext, type MapApi } from '../map/MapContext'
 import { distanceInMeters } from '../lib/geo'
 import { useTripStore } from '../store/tripStore'
@@ -59,6 +58,7 @@ export function MapPanel({
   const updateCityLocation = useTripStore((s) => s.updateCityLocation)
   const setPendingMapCoords = useTripStore((s) => s.setPendingMapCoords)
   const pushLog = useTripStore((s) => s.pushLog)
+  const showPoolOnMap = useTripStore((s) => s.showPoolOnMap)
 
   const drawRoutes = useCallback(
     (map: AMap.Map, focusDayId: string | null) => {
@@ -282,16 +282,43 @@ export function MapPanel({
 
       spotMarkersRef.current.forEach((m) => m.setMap(null))
       spotMarkersRef.current = []
+
+      // Which spots belong to which day (and which day color)?
+      // Also collect all spot IDs that ARE assigned to any day, so we can
+      // draw the remaining ones as grey pool pins.
+      const assignedSpotIds = new Set<string>()
+      const spotColorById = new Map<string, string>()
+      daysToDraw.forEach((day, idx) => {
+        const color = DAY_COLORS[idx % DAY_COLORS.length]
+        day.spotOrder.forEach((sid) => {
+          assignedSpotIds.add(sid)
+          spotColorById.set(sid, color)
+        })
+      })
+
       spots.forEach((spot) => {
+        const isPool = !assignedSpotIds.has(spot.id)
+        if (isPool && !showPoolOnMap) return
+        const dayColor = spotColorById.get(spot.id)
         const marker = new AMap.Marker({
           position: [spot.location.lng, spot.location.lat],
           title: spot.name,
           map,
+          zIndex: isPool ? 50 : 100,
+          label: dayColor
+            ? {
+                content: `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:${dayColor};color:#fff;font-size:10px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.25)">${spot.name}</span>`,
+                direction: 'top',
+              }
+            : {
+                content: `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:rgba(148,163,184,0.9);color:#fff;font-size:10px;font-weight:500;">${spot.name}</span>`,
+                direction: 'top',
+              },
         })
         marker.on('click', () => {
           const content = document.createElement('div')
           const nameDiv = document.createElement('div')
-          nameDiv.textContent = `景点：${spot.name}`
+          nameDiv.textContent = `${isPool ? '池中:' : '景点:'} ${spot.name}`
           content.appendChild(nameDiv)
           if (spot.visitTimeText) {
             const t = document.createElement('div')
@@ -328,7 +355,7 @@ export function MapPanel({
         map.setFitView(overlays)
       }
     },
-    [cities, spots, dailyPlans],
+    [cities, spots, dailyPlans, showPoolOnMap],
   )
 
   const reportMapError = useCallback(
@@ -519,7 +546,6 @@ export function MapPanel({
               </div>
             )}
             <div ref={containerRef} className="min-h-0 w-full flex-1" />
-            <AiCard />
           </div>
         </div>
       </div>

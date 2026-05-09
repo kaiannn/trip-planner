@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import { buildAiPrompt, type TripContextPayload } from '../lib/aiPrompt'
 import { buildTripProfileFromTags } from '../lib/tripProfile'
 import { isDuplicateSpot } from '../lib/geo'
-import { fetchAiRecommend, streamAiRecommend, fetchAiPoiQuery, abortPendingAiRequest } from '../api/ai'
+import { fetchAiRecommend, streamAiRecommend, fetchAiPoiQuery, fetchAiSeedPool, abortPendingAiRequest } from '../api/ai'
 import { fetchAmapPoiList, type AmapPoi } from '../api/amap'
 import type {
   AiFocus,
@@ -52,6 +52,12 @@ interface TripState {
   aiRefreshTimer: ReturnType<typeof setTimeout> | null
   mapRedrawNonce: number
   autoSeedPending: { city: City; pois: AmapPoi[] } | null
+  /** AI "seed my pool" natural-language input */
+  aiSeedInput: string
+  /** Status line for the seed-pool flow ("idle" | "seeding..." | error | summary) */
+  aiSeedStatus: string
+  /** Whether to show unassigned (pool) spots on the map as grey pins */
+  showPoolOnMap: boolean
 }
 
 function makeLog(message: string, level: LogLevel): LogEntry {
@@ -124,6 +130,10 @@ type TripActions = {
   cancelAutoSeed: () => void
   extendDaySpotsByAI: (dayId: string) => Promise<void>
   runReasonablenessChecks: () => void
+  setAiSeedInput: (v: string) => void
+  setShowPoolOnMap: (v: boolean) => void
+  /** Seed the Pool from a natural-language description via AI + AMap geocoding. */
+  seedPoolFromAi: () => Promise<void>
   resetQuiz: () => void
   setQuizNode: (id: string) => void
   selectQuizOption: (tags: string[], nextId: string | null) => void
@@ -167,6 +177,9 @@ export const useTripStore = create<TripState & TripActions>()(
   aiRefreshTimer: null,
   mapRedrawNonce: 0,
   autoSeedPending: null,
+  aiSeedInput: '',
+  aiSeedStatus: '',
+  showPoolOnMap: true,
 
   bumpMapRedraw: () => set((s) => ({ mapRedrawNonce: s.mapRedrawNonce + 1 })),
 
@@ -729,6 +742,112 @@ export const useTripStore = create<TripState & TripActions>()(
       quizNodeId: 'q_length',
       quizPhase: 'question',
     }),
+
+  setAiSeedInput: (v) => set({ aiSeedInput: v }),
+  setShowPoolOnMap: (v) => set({ showPoolOnMap: v }),
+
+  seedPoolFromAi: async () => {
+    const s = get()
+    const desc = s.aiSeedInput.trim()
+    if (!desc) {
+      get().pushLog('请先填写你想去哪 / 想要的体验。', 'warn')
+      return
+    }
+    const cityList = s.cities.slice().sort((a, b) => a.order - b.order)
+    if (!cityList.length) {
+      get().pushLog('请至少添加一个城市，AI 才能帮你筛选景点。', 'warn')
+      return
+    }
+    set({ aiSeedStatus: 'AI 正在根据你的描述生成候选…' })
+    let candidates
+    try {
+      candidates = await fetchAiSeedPool(
+        desc,
+        cityList.map((c) => ({ name: c.name })),
+      )
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      set({ aiSeedStatus: `生成失败：${msg}` })
+      get().pushLog(`AI 填充景点池失败：${msg}`, 'error')
+      return
+    }
+    if (!candidates.length) {
+      set({ aiSeedStatus: 'AI 没有返回候选，试着改一下描述。' })
+      return
+    }
+
+    set({ aiSeedStatus: `收到 ${candidates.length} 个候选，正在定位坐标…` })
+
+    // Geocode each candidate that lacks coords, using the matching city
+    // from our list (best-effort match on cityHint).
+    const AMapNs = typeof window !== 'undefined' ? window.AMap : undefined
+    const getGeocoder = (city: string) => {
+      if (!AMapNs?.Geocoder) return null
+      return new AMapNs.Geocoder({ city: city || '全国' })
+    }
+    const resolveOne = (
+      name: string,
+      city: string,
+    ): Promise<{ lat: number; lng: number } | null> =>
+      new Promise((resolve) => {
+        const g = getGeocoder(city)
+        if (!g) return resolve(null)
+        const query = city ? `${city}${name}` : name
+        g.getLocation(query, (status, result) => {
+          if (
+            status === 'complete' &&
+            result.info === 'OK' &&
+            result.geocodes?.length
+          ) {
+            const loc = result.geocodes[0].location
+            resolve({ lat: loc.lat, lng: loc.lng })
+          } else {
+            resolve(null)
+          }
+        })
+      })
+
+    let added = 0
+    let skipped = 0
+    for (const c of candidates) {
+      // Pick city: explicit cityHint if we have it, else fall back to
+      // the first user-selected city.
+      const matched =
+        cityList.find((city) =>
+          c.cityHint ? city.name.includes(c.cityHint) : false,
+        ) ?? cityList[0]
+
+      let loc: { lat: number; lng: number } | null =
+        typeof c.lat === 'number' && typeof c.lng === 'number'
+          ? { lat: c.lat, lng: c.lng }
+          : null
+      if (!loc) {
+        loc = await resolveOne(c.name, matched.name)
+      }
+      // If still no coords, skip this candidate rather than silently
+      // dropping it at the city center (task #14).
+      if (!loc) {
+        skipped += 1
+        continue
+      }
+      const ok = get().addSpot({
+        cityId: matched.id,
+        name: c.name,
+        location: loc,
+        description: c.description,
+      })
+      if (ok) added += 1
+    }
+
+    set({
+      aiSeedStatus: `已添加 ${added} 个景点到池子${
+        skipped ? `，${skipped} 个因无法定位被跳过` : ''
+      }。`,
+    })
+    get().pushLog(
+      `AI 景点池填充完成：+${added} 个${skipped ? `（跳过 ${skipped} 个）` : ''}。`,
+    )
+  },
 
   setQuizNode: (id) => {
     set((s) => {

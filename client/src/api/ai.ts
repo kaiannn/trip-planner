@@ -1,6 +1,6 @@
 import type { TripContextPayload } from '../lib/aiPrompt'
 import { getUserHeaders } from '../store/settingsStore'
-import type { AiSection } from '../types'
+import type { AiPoolCandidate, AiSection } from '../types'
 
 let aiAbortController: AbortController | null = null
 
@@ -115,6 +115,25 @@ export interface PoiQueryResult {
   keywords: string
   types: string
   quality: 'normal' | 'high'
+}
+
+/**
+ * AI seeds the Pool: pass a natural-language trip description and
+ * optionally the user's selected cities; get back candidate spots.
+ * The client geocodes these via AMap before adding to the pool.
+ */
+export async function fetchAiSeedPool(
+  description: string,
+  cities: { name: string }[],
+): Promise<AiPoolCandidate[]> {
+  const res = await fetch('/api/ai/seed-pool', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify({ description, cities }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || `AI 填充景点池失败 ${res.status}`)
+  return Array.isArray(data.candidates) ? data.candidates : []
 }
 
 export async function fetchAiPoiQuery(

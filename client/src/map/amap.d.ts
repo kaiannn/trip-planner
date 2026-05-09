@@ -41,6 +41,24 @@ declare namespace AMap {
     position?: [number, number]
     title?: string
     map?: Map
+    icon?: string | Icon
+    label?: { content: string; direction?: 'top' | 'bottom' | 'left' | 'right' }
+    zIndex?: number
+    offset?: Pixel
+  }
+
+  interface IconOptions {
+    size?: Size
+    imageSize?: Size
+    image?: string
+  }
+
+  class Icon {
+    constructor(opts?: IconOptions)
+  }
+
+  class Size {
+    constructor(w: number, h: number)
   }
 
   class Polyline {

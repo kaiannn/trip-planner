@@ -1,0 +1,97 @@
+import { useMemo } from 'react'
+import { useTripStore } from '../store/tripStore'
+import { Btn } from './ui'
+
+/**
+ * Persistent Pool panel at the bottom of the right rail. Shows
+ * unassigned spots and a summary. Clicking a spot opens the spot
+ * detail modal. The dedicated "add spot" form stays in
+ * SpotPoolModal for now — this panel is the read + dispatch view.
+ */
+export function SpotPoolPanel() {
+  const spots = useTripStore((s) => s.spots)
+  const dailyPlans = useTripStore((s) => s.dailyPlans)
+  const cities = useTripStore((s) => s.cities)
+  const setSpotDetail = useTripStore((s) => s.setSpotDetail)
+  const setSpotPoolOpen = useTripStore((s) => s.setSpotPoolOpen)
+  const showPoolOnMap = useTripStore((s) => s.showPoolOnMap)
+  const setShowPoolOnMap = useTripStore((s) => s.setShowPoolOnMap)
+
+  const assignedIds = useMemo(() => {
+    const set = new Set<string>()
+    dailyPlans.forEach((d) => d.spotOrder.forEach((id) => set.add(id)))
+    return set
+  }, [dailyPlans])
+
+  const unassigned = useMemo(
+    () => spots.filter((s) => !assignedIds.has(s.id)),
+    [spots, assignedIds],
+  )
+
+  const cityName = (cityId: string) =>
+    cities.find((c) => c.id === cityId)?.name ?? '未知城市'
+
+  return (
+    <section className="flex min-h-[12rem] flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-900/[0.03]">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2">
+        <div>
+          <div className="text-sm font-semibold text-slate-800">
+            📌 景点池
+            <span className="ml-1.5 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-500 ring-1 ring-slate-200">
+              {unassigned.length} 未分配 · {spots.length} 总数
+            </span>
+          </div>
+          <div className="mt-0.5 text-[11px] text-slate-500">
+            拖进上方天数安排（Session 4 开启拖拽）
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <label className="flex cursor-pointer items-center gap-1 text-[11px] text-slate-600">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 rounded border-slate-300"
+              checked={showPoolOnMap}
+              onChange={(e) => setShowPoolOnMap(e.target.checked)}
+            />
+            地图显示
+          </label>
+          <Btn
+            variant="ghost"
+            className="!py-1 !text-[11px]"
+            onClick={() => setSpotPoolOpen(true)}
+          >
+            添加 / 搜索
+          </Btn>
+        </div>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        {unassigned.length === 0 ? (
+          <p className="px-2 py-4 text-center text-[12px] text-slate-400">
+            {spots.length === 0
+              ? '景点池为空。上方让 AI 帮你填，或点「添加 / 搜索」手动加。'
+              : '全部景点都已分配到某一天。'}
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {unassigned.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  onClick={() => setSpotDetail(s)}
+                  className="group flex w-full items-center justify-between gap-2 rounded-lg border border-slate-100 bg-white px-2.5 py-1.5 text-left shadow-sm transition hover:border-teal-200 hover:bg-teal-50/30"
+                >
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800 group-hover:text-teal-900">
+                    {s.name}
+                  </span>
+                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                    {cityName(s.cityId)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  )
+}

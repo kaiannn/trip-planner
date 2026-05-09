@@ -405,6 +405,107 @@ app.get('/api/amap/poi/detail', async (req, res) => {
   }
 });
 
+/**
+ * AI seeds the Pool: takes a natural-language description of the
+ * trip and returns candidate spots (name / cityHint / description).
+ * Coords are optional — the client will geocode each candidate via
+ * AMap before adding to the pool.
+ *
+ * Response shape:
+ *   { candidates: AiPoolCandidate[] }
+ */
+app.post('/api/ai/seed-pool', async (req, res) => {
+  try {
+    const { description, cities } = req.body || {};
+    if (!description || typeof description !== 'string') {
+      return res.status(400).json({ error: '缺少 description 字段。' });
+    }
+    const llmKey = getLlmKey(req);
+    if (!llmKey) {
+      return res.status(503).json({
+        error: '未配置 LLM API Key。',
+      });
+    }
+
+    const citiesHint = Array.isArray(cities) && cities.length
+      ? `已选城市：${cities.map((c) => c?.name).filter(Boolean).join('、')}`
+      : '（用户暂未选择城市，请从描述里推断）';
+
+    const sysPrompt =
+      '你在帮用户搜集「可能感兴趣的景点候选」，用于扔进他们的景点池。' +
+      '只输出一个 JSON 对象，不要任何解释文字。' +
+      'JSON 结构为 {"candidates":[{"name":"景点名","cityHint":"所属城市","address":"地址可选","description":"1-2 句话介绍"}]}。' +
+      '至少给 10 个，至多给 20 个。' +
+      '要尽可能贴合用户描述（偏好、人数、节奏），不要只抄 Top-10 热门景点。' +
+      '不要包含住宿、餐厅。只要值得一去的地点、博物馆、公园、自然景观、小众文化点。';
+
+    const url = `${LLM_BASE_URL.replace(/\/$/, '')}/chat/completions`;
+    const body = {
+      model: LLM_MODEL,
+      messages: [
+        { role: 'system', content: sysPrompt },
+        {
+          role: 'user',
+          content: `${citiesHint}\n\n用户的描述：\n${description}`,
+        },
+      ],
+      temperature: 0.5,
+      response_format: { type: 'json_object' },
+    };
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${llmKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error('[SEED POOL ERROR]', resp.status, text);
+      return res.status(500).json({
+        error: `LLM 请求失败：${resp.status}`,
+      });
+    }
+
+    const data = await resp.json();
+    const content =
+      data.choices?.[0]?.message?.content ||
+      data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments ||
+      '{}';
+
+    let parsed;
+    try {
+      parsed = typeof content === 'string' ? JSON.parse(content) : content;
+    } catch (e) {
+      console.error('[SEED POOL PARSE ERROR]', e, content);
+      return res.status(500).json({
+        error: '无法解析模型返回的 JSON。',
+      });
+    }
+
+    const raw = Array.isArray(parsed.candidates) ? parsed.candidates : [];
+    const candidates = raw
+      .filter((c) => c && typeof c.name === 'string' && c.name.trim())
+      .map((c) => ({
+        name: String(c.name).trim(),
+        cityHint: c.cityHint ? String(c.cityHint).trim() : undefined,
+        address: c.address ? String(c.address).trim() : undefined,
+        description: c.description ? String(c.description).trim() : undefined,
+        lat: typeof c.lat === 'number' ? c.lat : undefined,
+        lng: typeof c.lng === 'number' ? c.lng : undefined,
+      }))
+      .slice(0, 20);
+
+    res.json({ candidates });
+  } catch (e) {
+    console.error('[SEED POOL API ERROR]', e);
+    res.status(500).json({ error: '服务器内部错误', detail: e.message });
+  }
+});
+
 // AI 辅助生成高德 POI 搜索条件
 app.post('/api/ai/poi-query', async (req, res) => {
   try {

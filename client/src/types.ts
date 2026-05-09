@@ -63,3 +63,16 @@ export interface LogEntry {
 }
 
 export type AiFocus = 'all' | 'spots' | 'lodging'
+
+/**
+ * One AI-suggested candidate spot for the Pool seeding flow.
+ * Lightweight; AI returns just enough info to geocode + add to pool.
+ */
+export interface AiPoolCandidate {
+  name: string
+  cityHint?: string
+  address?: string
+  description?: string
+  lat?: number
+  lng?: number
+}
