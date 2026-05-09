@@ -31,6 +31,12 @@ export function MapPanel({
   const routePolylinesRef = useRef<AMap.Polyline[]>([])
   const distanceLabelsRef = useRef<AMap.Text[]>([])
   const infoWindowRef = useRef<AMap.InfoWindow | null>(null)
+  // Cache driving-route results keyed by "lng1,lat1|lng2,lat2"
+  // so zoom / pan / legend re-renders don't re-hit the AMap API.
+  const drivingCacheRef = useRef<Map<string, { distance: number; duration: number; path: number[][] }>>(
+    new Map(),
+  )
+  const drawSeqRef = useRef(0)
   const [scriptReady, setScriptReady] = useState(() => !!window.AMap)
   const amapKey = import.meta.env.VITE_AMAP_KEY || 'YOUR_AMAP_KEY'
   const amapSecurityCode = import.meta.env.VITE_AMAP_SECURITY_CODE || ''
@@ -56,6 +62,11 @@ export function MapPanel({
 
   const drawRoutes = useCallback(
     (map: AMap.Map, focusDayId: string | null) => {
+      // Bump the render sequence. Any in-flight driving lookups from earlier
+      // renders will see `drawSeqRef.current !== mySeq` and drop their results.
+      drawSeqRef.current += 1
+      const mySeq = drawSeqRef.current
+
       routePolylinesRef.current.forEach((p) => p.setMap(null))
       routePolylinesRef.current = []
       distanceLabelsRef.current.forEach((t) => t.setMap(null))
@@ -68,6 +79,55 @@ export function MapPanel({
       }
 
       const AMap = window.AMap
+
+      // Resolve one driving segment between two coords, using a module-level
+      // cache so repeated renders don't re-hit the AMap Driving API.
+      const fetchDrivingSegment = (
+        a: { lat: number; lng: number },
+        b: { lat: number; lng: number },
+      ): Promise<{ distance: number; duration: number; path: number[][] }> => {
+        const key = `${a.lng.toFixed(5)},${a.lat.toFixed(5)}|${b.lng.toFixed(5)},${b.lat.toFixed(5)}`
+        const cached = drivingCacheRef.current.get(key)
+        if (cached) return Promise.resolve(cached)
+        if (!AMap.Driving) {
+          return Promise.reject(new Error('AMap.Driving plugin not loaded'))
+        }
+        return new Promise((resolve, reject) => {
+          const driving = new AMap.Driving({ policy: 0, hideMarkers: true })
+          driving.search(
+            [a.lng, a.lat],
+            [b.lng, b.lat],
+            (
+              status: string,
+              result: {
+                info?: string
+                routes?: {
+                  distance: number
+                  time: number
+                  steps: { path: { lng: number; lat: number }[] }[]
+                }[]
+              },
+            ) => {
+              if (status !== 'complete' || !result.routes?.length) {
+                reject(new Error(result?.info ?? 'no route'))
+                return
+              }
+              const route = result.routes[0]
+              const path: number[][] = []
+              route.steps.forEach((step) => {
+                step.path.forEach((p) => path.push([p.lng, p.lat]))
+              })
+              const out = {
+                distance: route.distance,
+                duration: route.time,
+                path,
+              }
+              drivingCacheRef.current.set(key, out)
+              resolve(out)
+            },
+          )
+        })
+      }
       const sortedCities = cities.slice().sort((a, b) => a.order - b.order)
       const cityPath = sortedCities
         .filter((c) => c.location)
@@ -105,33 +165,89 @@ export function MapPanel({
         })
         const color = DAY_COLORS[idx % DAY_COLORS.length]
         if (coords.length >= 2) {
-          const line = new AMap.Polyline({
+          // Draw a fallback straight line immediately so the user sees something
+          // while the real driving routes resolve.
+          const fallback = new AMap.Polyline({
             path: coords,
             strokeColor: color,
-            strokeWeight: 4,
+            strokeWeight: 2,
+            strokeOpacity: 0.35,
+            strokeStyle: 'dashed',
           })
-          map.add(line)
-          routePolylinesRef.current.push(line)
+          map.add(fallback)
+          routePolylinesRef.current.push(fallback)
+
+          // Kick off one Driving lookup per consecutive pair. Results are
+          // cached so panning / re-rendering doesn't re-hit the API.
           for (let i = 0; i < orderedSpots.length - 1; i++) {
             const a = orderedSpots[i].location
             const b = orderedSpots[i + 1].location
-            const d = distanceInMeters(a.lat, a.lng, b.lat, b.lng)
-            const midLng = (a.lng + b.lng) / 2
-            const midLat = (a.lat + b.lat) / 2
-            const label = new AMap.Text({
-              text: `${(d / 1000).toFixed(1)} km`,
-              position: [midLng, midLat],
-              style: {
-                'background-color': 'rgba(255,255,255,0.9)',
-                'border-radius': '4px',
-                padding: '2px 4px',
-                'font-size': '10px',
-                border: `1px solid ${color}`,
-                color,
-              },
-            })
-            map.add(label)
-            distanceLabelsRef.current.push(label)
+            fetchDrivingSegment(a, b)
+              .then((seg) => {
+                if (drawSeqRef.current !== mySeq) return // stale render
+                const line = new AMap.Polyline({
+                  path: seg.path,
+                  strokeColor: color,
+                  strokeWeight: 5,
+                  strokeOpacity: 0.9,
+                })
+                map.add(line)
+                routePolylinesRef.current.push(line)
+
+                const midIdx = Math.floor(seg.path.length / 2)
+                const midPoint = seg.path[midIdx]
+                const mid: [number, number] =
+                  midPoint && midPoint.length >= 2
+                    ? [midPoint[0], midPoint[1]]
+                    : [(a.lng + b.lng) / 2, (a.lat + b.lat) / 2]
+                const km = (seg.distance / 1000).toFixed(1)
+                const min = Math.max(1, Math.round(seg.duration / 60))
+                const label = new AMap.Text({
+                  text: `${km} km · ${min} 分钟`,
+                  position: mid,
+                  style: {
+                    'background-color': 'rgba(255,255,255,0.95)',
+                    'border-radius': '4px',
+                    padding: '2px 6px',
+                    'font-size': '10px',
+                    border: `1px solid ${color}`,
+                    color,
+                  },
+                })
+                map.add(label)
+                distanceLabelsRef.current.push(label)
+              })
+              .catch(() => {
+                // Driving lookup failed (rate limit / no route) — fall back
+                // to a straight line with haversine distance so the user
+                // still sees something.
+                if (drawSeqRef.current !== mySeq) return
+                const line = new AMap.Polyline({
+                  path: [
+                    [a.lng, a.lat],
+                    [b.lng, b.lat],
+                  ],
+                  strokeColor: color,
+                  strokeWeight: 4,
+                })
+                map.add(line)
+                routePolylinesRef.current.push(line)
+                const d = distanceInMeters(a.lat, a.lng, b.lat, b.lng)
+                const label = new AMap.Text({
+                  text: `${(d / 1000).toFixed(1)} km (直线)`,
+                  position: [(a.lng + b.lng) / 2, (a.lat + b.lat) / 2],
+                  style: {
+                    'background-color': 'rgba(255,255,255,0.9)',
+                    'border-radius': '4px',
+                    padding: '2px 4px',
+                    'font-size': '10px',
+                    border: `1px solid ${color}`,
+                    color,
+                  },
+                })
+                map.add(label)
+                distanceLabelsRef.current.push(label)
+              })
           }
         }
         if (coords.length >= 1) {
@@ -244,7 +360,7 @@ export function MapPanel({
       return
     }
 
-    const src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(amapKey)}&plugin=AMap.Geocoder`
+    const src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(amapKey)}&plugin=AMap.Geocoder,AMap.Driving`
 
     const script = document.createElement('script')
     script.src = src
@@ -287,7 +403,7 @@ export function MapPanel({
     }
     mapRef.current = map
     infoWindowRef.current = new window.AMap.InfoWindow({ offset: new window.AMap.Pixel(0, -30) })
-    window.AMap.plugin('AMap.Geocoder', () => {})
+    window.AMap.plugin(['AMap.Geocoder', 'AMap.Driving'], () => {})
 
     map.on('rightclick', (e: AMap.MapEvent) => {
       const lnglat = e.lnglat

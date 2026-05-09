@@ -52,6 +52,7 @@ declare namespace AMap {
     path?: number[][]
     strokeColor?: string
     strokeWeight?: number
+    strokeOpacity?: number
     strokeStyle?: 'solid' | 'dashed'
   }
 
@@ -68,7 +69,7 @@ declare namespace AMap {
 
   class InfoWindow {
     constructor(opts?: InfoWindowOptions)
-    setContent(content: string): void
+    setContent(content: string | HTMLElement): void
     open(map: Map, position: LngLat): void
   }
 
@@ -90,7 +91,31 @@ declare namespace AMap {
     ): void
   }
 
-  function plugin(name: string, callback: () => void): void
+  interface DrivingStep {
+    path: { lng: number; lat: number }[]
+  }
+
+  interface DrivingRoute {
+    distance: number
+    time: number
+    steps: DrivingStep[]
+  }
+
+  interface DrivingResult {
+    info?: string
+    routes?: DrivingRoute[]
+  }
+
+  class Driving {
+    constructor(opts?: { policy?: number; hideMarkers?: boolean })
+    search(
+      origin: [number, number],
+      destination: [number, number],
+      callback: (status: string, result: DrivingResult) => void,
+    ): void
+  }
+
+  function plugin(name: string | string[], callback: () => void): void
 }
 
 interface Window {
