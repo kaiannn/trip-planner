@@ -68,6 +68,7 @@ declare namespace AMap {
   class Polyline {
     constructor(opts?: PolylineOptions)
     setMap(map: Map | null): void
+    on(event: string, handler: (e: MapEvent) => void): void
   }
 
   interface PolylineOptions {
@@ -93,6 +94,7 @@ declare namespace AMap {
     constructor(opts?: InfoWindowOptions)
     setContent(content: string | HTMLElement): void
     open(map: Map, position: LngLat): void
+    close(): void
   }
 
   interface InfoWindowOptions {
@@ -155,6 +157,51 @@ declare namespace AMap {
       origin: [number, number],
       destination: [number, number],
       callback: (status: string, result: DrivingResult) => void,
+    ): void
+  }
+
+  class Walking {
+    constructor(opts?: { hideMarkers?: boolean })
+    search(
+      origin: [number, number],
+      destination: [number, number],
+      callback: (status: string, result: DrivingResult) => void,
+    ): void
+  }
+
+  class Riding {
+    constructor(opts?: { hideMarkers?: boolean })
+    search(
+      origin: [number, number],
+      destination: [number, number],
+      callback: (status: string, result: DrivingResult) => void,
+    ): void
+  }
+
+  interface TransferSegment {
+    distance?: number
+    time?: number
+    transit_mode?: string
+    path?: { lng: number; lat: number }[]
+  }
+
+  interface TransferPlan {
+    distance: number
+    time: number
+    segments?: TransferSegment[]
+  }
+
+  interface TransferResult {
+    info?: string
+    plans?: TransferPlan[]
+  }
+
+  class Transfer {
+    constructor(opts?: { city?: string; hideMarkers?: boolean })
+    search(
+      origin: [number, number],
+      destination: [number, number],
+      callback: (status: string, result: TransferResult) => void,
     ): void
   }
 

@@ -62,6 +62,9 @@ export interface DailyLodging {
   address?: string
 }
 
+/** Which routing mode to use between two consecutive stops within a day. */
+export type TransportMode = 'driving' | 'walking' | 'transit' | 'riding'
+
 export interface DailyPlan {
   id: string
   dayIndex: number
@@ -70,6 +73,13 @@ export interface DailyPlan {
   lodging: DailyLodging
   spotOrder: string[]
   transportMode?: string
+  /**
+   * Per-segment transport mode override, keyed by "<spotId>|<spotId>"
+   * (source|destination in the day's spotOrder). Missing key defaults to
+   * 'driving'. Stored on the DailyPlan so a spot assigned to two days
+   * can still have different modes on each day's leg.
+   */
+  segmentModes?: Record<string, TransportMode>
 }
 
 export interface AiItem {

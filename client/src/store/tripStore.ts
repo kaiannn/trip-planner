@@ -136,6 +136,13 @@ type TripActions = {
   }) => void
   deleteDay: (dayId: string) => void
   setDaySpotOrder: (dayId: string, spotOrder: string[]) => void
+  /** Set the transport mode for one segment within a day. */
+  setSegmentMode: (
+    dayId: string,
+    fromSpotId: string,
+    toSpotId: string,
+    mode: import('../types').TransportMode,
+  ) => void
   /** Put a pool spot onto the end of a day. Idempotent. */
   assignSpotToDay: (spotId: string, dayId: string) => void
   /** Remove a spot from a day's spotOrder, back into the pool. */
@@ -402,6 +409,25 @@ export const useTripStore = create<TripState & TripActions>()(
       ),
     }))
     get().scheduleAiRefresh()
+  },
+
+  setSegmentMode: (dayId, fromSpotId, toSpotId, mode) => {
+    const key = `${fromSpotId}|${toSpotId}`
+    set((s) => ({
+      dailyPlans: s.dailyPlans.map((d) => {
+        if (d.id !== dayId) return d
+        const next = { ...(d.segmentModes ?? {}) }
+        if (mode === 'driving') {
+          // 'driving' is the default — drop the override entirely so the
+          // store doesn't grow stale entries we'd never read.
+          delete next[key]
+        } else {
+          next[key] = mode
+        }
+        return { ...d, segmentModes: next }
+      }),
+    }))
+    get().bumpMapRedraw()
   },
 
   assignSpotToDay: (spotId, dayId) => {

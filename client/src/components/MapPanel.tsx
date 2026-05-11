@@ -7,8 +7,14 @@ import {
   SPOT_KIND_ICON,
   SPOT_KIND_LABEL,
 } from '../lib/spotKind'
+import {
+  fetchAllModes,
+  fetchSegment,
+  TRANSPORT_ICON,
+  TRANSPORT_LABEL,
+} from '../lib/amapRouting'
 import { useTripStore } from '../store/tripStore'
-import type { City, Spot } from '../types'
+import type { City, Spot, TransportMode } from '../types'
 
 const DAY_COLORS = [
   '#059669',
@@ -37,9 +43,8 @@ export function MapPanel({
   const infoWindowRef = useRef<AMap.InfoWindow | null>(null)
   // Cache driving-route results keyed by "lng1,lat1|lng2,lat2"
   // so zoom / pan / legend re-renders don't re-hit the AMap API.
-  const drivingCacheRef = useRef<Map<string, { distance: number; duration: number; path: number[][] }>>(
-    new Map(),
-  )
+  // (Module-level cache lives in lib/amapRouting.ts now; this ref is unused
+  //  but kept here so existing setState plumbing is undisturbed.)
   const drawSeqRef = useRef(0)
   const [scriptReady, setScriptReady] = useState(() => !!window.AMap)
   const amapKey = import.meta.env.VITE_AMAP_KEY || 'YOUR_AMAP_KEY'
@@ -62,6 +67,7 @@ export function MapPanel({
   const mapFocusSpotId = useTripStore((s) => s.mapFocusSpotId)
   const clearMapFocus = useTripStore((s) => s.clearMapFocus)
   const mapRedrawNonce = useTripStore((s) => s.mapRedrawNonce)
+  const setSegmentMode = useTripStore((s) => s.setSegmentMode)
   const updateCityLocation = useTripStore((s) => s.updateCityLocation)
   const setPendingMapCoords = useTripStore((s) => s.setPendingMapCoords)
   const setSpotDetail = useTripStore((s) => s.setSpotDetail)
@@ -76,6 +82,147 @@ export function MapPanel({
       drawSeqRef.current += 1
       const mySeq = drawSeqRef.current
 
+      // ---- segment popup + context menu (closures over map/setSegmentMode) ----
+      // Click the polyline -> show 4-mode comparison in the InfoWindow.
+      const showSegmentPopup = (
+        dayId: string,
+        fromId: string,
+        toId: string,
+        a: { lat: number; lng: number },
+        b: { lat: number; lng: number },
+        currentMode: TransportMode,
+        cityName: string | undefined,
+      ) => {
+        const AMapNs = window.AMap
+        if (!AMapNs) return
+        const wrap = document.createElement('div')
+        wrap.style.minWidth = '200px'
+        wrap.style.fontSize = '12px'
+        const title = document.createElement('div')
+        title.style.fontWeight = '600'
+        title.style.marginBottom = '6px'
+        const fromName =
+          spots.find((s) => s.id === fromId)?.name ?? '起点'
+        const toName = spots.find((s) => s.id === toId)?.name ?? '终点'
+        title.textContent = `${fromName} → ${toName}`
+        wrap.appendChild(title)
+
+        const list = document.createElement('div')
+        list.style.display = 'grid'
+        list.style.gap = '4px'
+        const placeholder = document.createElement('div')
+        placeholder.style.color = '#94a3b8'
+        placeholder.style.fontSize = '11px'
+        placeholder.textContent = '加载 4 种交通方式…'
+        list.appendChild(placeholder)
+        wrap.appendChild(list)
+
+        const hint = document.createElement('div')
+        hint.style.marginTop = '6px'
+        hint.style.fontSize = '10px'
+        hint.style.color = '#94a3b8'
+        hint.textContent = '点击切换 · 右键线条也可快速切换'
+        wrap.appendChild(hint)
+
+        const iw = new AMapNs.InfoWindow({
+          offset: new AMapNs.Pixel(0, -8),
+        })
+        iw.setContent(wrap)
+        const midLng = (a.lng + b.lng) / 2
+        const midLat = (a.lat + b.lat) / 2
+        iw.open(map, new AMapNs.LngLat(midLng, midLat))
+
+        // Resolve all four in parallel; replace the placeholder once we have
+        // any data. Failed modes show as "-".
+        fetchAllModes(a, b, { city: cityName }).then((all) => {
+          list.innerHTML = ''
+          ;(['driving', 'walking', 'transit', 'riding'] as TransportMode[]).forEach(
+            (m) => {
+              const row = document.createElement('button')
+              row.type = 'button'
+              row.style.cssText =
+                'display:flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;text-align:left;font:inherit;color:#334155;'
+              if (m === currentMode) {
+                row.style.background = '#ecfeff'
+                row.style.borderColor = '#22d3ee'
+                row.style.fontWeight = '600'
+              }
+              const r = all[m]
+              const summary = r
+                ? `${(r.distance / 1000).toFixed(1)} km · ${Math.max(
+                    1,
+                    Math.round(r.duration / 60),
+                  )} 分钟`
+                : '不可达'
+              row.innerHTML = `
+                <span style="width:1.2em;text-align:center">${TRANSPORT_ICON[m]}</span>
+                <span style="flex:1">${TRANSPORT_LABEL[m]}</span>
+                <span style="color:${r ? '#0f766e' : '#94a3b8'};font-variant-numeric:tabular-nums;">${summary}</span>
+              `
+              row.addEventListener('click', () => {
+                setSegmentMode(dayId, fromId, toId, m)
+                iw.open(map, new AMapNs.LngLat(midLng, midLat)) // keep visible
+              })
+              list.appendChild(row)
+            },
+          )
+        })
+      }
+
+      // Right-click polyline -> floating mini menu (4 modes).
+      const showSegmentMenu = (
+        dayId: string,
+        fromId: string,
+        toId: string,
+        currentMode: TransportMode,
+        _cityName: string | undefined,
+      ) => {
+        // We can't position from a polyline event reliably without a fresh
+        // pixel coord, so reuse the same InfoWindow flow but skip API calls
+        // and just present the menu.
+        const AMapNs = window.AMap
+        if (!AMapNs) return
+        const a = spots.find((s) => s.id === fromId)?.location
+        const b = spots.find((s) => s.id === toId)?.location
+        if (!a || !b) return
+        const wrap = document.createElement('div')
+        wrap.style.fontSize = '12px'
+        wrap.style.minWidth = '140px'
+        const title = document.createElement('div')
+        title.style.fontWeight = '600'
+        title.style.marginBottom = '4px'
+        title.textContent = '选择交通方式'
+        wrap.appendChild(title)
+        ;(['driving', 'walking', 'transit', 'riding'] as TransportMode[]).forEach(
+          (m) => {
+            const row = document.createElement('button')
+            row.type = 'button'
+            row.style.cssText =
+              'display:block;width:100%;padding:4px 8px;margin-top:2px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;text-align:left;font:inherit;color:#334155;'
+            if (m === currentMode) {
+              row.style.background = '#ecfeff'
+              row.style.borderColor = '#22d3ee'
+              row.style.fontWeight = '600'
+            }
+            row.textContent = `${TRANSPORT_ICON[m]} ${TRANSPORT_LABEL[m]}${
+              m === currentMode ? ' ✓' : ''
+            }`
+            row.addEventListener('click', () => {
+              setSegmentMode(dayId, fromId, toId, m)
+              iw.close()
+            })
+            wrap.appendChild(row)
+          },
+        )
+        const iw = new AMapNs.InfoWindow({
+          offset: new AMapNs.Pixel(0, -8),
+        })
+        iw.setContent(wrap)
+        const midLng = (a.lng + b.lng) / 2
+        const midLat = (a.lat + b.lat) / 2
+        iw.open(map, new AMapNs.LngLat(midLng, midLat))
+      }
+
       routePolylinesRef.current.forEach((p) => p.setMap(null))
       routePolylinesRef.current = []
       distanceLabelsRef.current.forEach((t) => t.setMap(null))
@@ -89,54 +236,6 @@ export function MapPanel({
 
       const AMap = window.AMap
 
-      // Resolve one driving segment between two coords, using a module-level
-      // cache so repeated renders don't re-hit the AMap Driving API.
-      const fetchDrivingSegment = (
-        a: { lat: number; lng: number },
-        b: { lat: number; lng: number },
-      ): Promise<{ distance: number; duration: number; path: number[][] }> => {
-        const key = `${a.lng.toFixed(5)},${a.lat.toFixed(5)}|${b.lng.toFixed(5)},${b.lat.toFixed(5)}`
-        const cached = drivingCacheRef.current.get(key)
-        if (cached) return Promise.resolve(cached)
-        if (!AMap.Driving) {
-          return Promise.reject(new Error('AMap.Driving plugin not loaded'))
-        }
-        return new Promise((resolve, reject) => {
-          const driving = new AMap.Driving({ policy: 0, hideMarkers: true })
-          driving.search(
-            [a.lng, a.lat],
-            [b.lng, b.lat],
-            (
-              status: string,
-              result: {
-                info?: string
-                routes?: {
-                  distance: number
-                  time: number
-                  steps: { path: { lng: number; lat: number }[] }[]
-                }[]
-              },
-            ) => {
-              if (status !== 'complete' || !result.routes?.length) {
-                reject(new Error(result?.info ?? 'no route'))
-                return
-              }
-              const route = result.routes[0]
-              const path: number[][] = []
-              route.steps.forEach((step) => {
-                step.path.forEach((p) => path.push([p.lng, p.lat]))
-              })
-              const out = {
-                distance: route.distance,
-                duration: route.time,
-                path,
-              }
-              drivingCacheRef.current.set(key, out)
-              resolve(out)
-            },
-          )
-        })
-      }
       const sortedCities = cities.slice().sort((a, b) => a.order - b.order)
       const cityPath = sortedCities
         .filter((c) => c.location)
@@ -173,6 +272,7 @@ export function MapPanel({
           }
         })
         const color = DAY_COLORS[idx % DAY_COLORS.length]
+        const cityName = cities.find((c) => c.id === day.cityId)?.name
         if (coords.length >= 2) {
           // Draw a fallback straight line immediately so the user sees something
           // while the real driving routes resolve.
@@ -186,12 +286,16 @@ export function MapPanel({
           map.add(fallback)
           routePolylinesRef.current.push(fallback)
 
-          // Kick off one Driving lookup per consecutive pair. Results are
-          // cached so panning / re-rendering doesn't re-hit the API.
           for (let i = 0; i < orderedSpots.length - 1; i++) {
             const a = orderedSpots[i].location
             const b = orderedSpots[i + 1].location
-            fetchDrivingSegment(a, b)
+            const fromId = orderedSpots[i].id
+            const toId = orderedSpots[i + 1].id
+            const segKey = `${fromId}|${toId}`
+            const mode: TransportMode =
+              day.segmentModes?.[segKey] ?? 'driving'
+
+            fetchSegment(mode, a, b, { city: cityName })
               .then((seg) => {
                 if (drawSeqRef.current !== mySeq) return // stale render
                 const line = new AMap.Polyline({
@@ -199,9 +303,16 @@ export function MapPanel({
                   strokeColor: color,
                   strokeWeight: 5,
                   strokeOpacity: 0.9,
+                  strokeStyle: mode === 'driving' ? 'solid' : 'dashed',
                 })
                 map.add(line)
                 routePolylinesRef.current.push(line)
+                line.on('click', () =>
+                  showSegmentPopup(day.id, fromId, toId, a, b, mode, cityName),
+                )
+                line.on('rightclick', () =>
+                  showSegmentMenu(day.id, fromId, toId, mode, cityName),
+                )
 
                 const midIdx = Math.floor(seg.path.length / 2)
                 const midPoint = seg.path[midIdx]
@@ -212,7 +323,7 @@ export function MapPanel({
                 const km = (seg.distance / 1000).toFixed(1)
                 const min = Math.max(1, Math.round(seg.duration / 60))
                 const label = new AMap.Text({
-                  text: `${km} km · ${min} 分钟`,
+                  text: `${TRANSPORT_ICON[mode]} ${km} km · ${min} 分钟`,
                   position: mid,
                   style: {
                     'background-color': 'rgba(255,255,255,0.95)',
@@ -221,15 +332,15 @@ export function MapPanel({
                     'font-size': '10px',
                     border: `1px solid ${color}`,
                     color,
+                    cursor: 'pointer',
                   },
                 })
                 map.add(label)
                 distanceLabelsRef.current.push(label)
               })
               .catch(() => {
-                // Driving lookup failed (rate limit / no route) — fall back
-                // to a straight line with haversine distance so the user
-                // still sees something.
+                // Routing failed — fall back to a straight line with
+                // haversine distance so the user still sees something.
                 if (drawSeqRef.current !== mySeq) return
                 const line = new AMap.Polyline({
                   path: [
@@ -238,12 +349,20 @@ export function MapPanel({
                   ],
                   strokeColor: color,
                   strokeWeight: 4,
+                  strokeOpacity: 0.7,
+                  strokeStyle: 'dashed',
                 })
                 map.add(line)
                 routePolylinesRef.current.push(line)
+                line.on('click', () =>
+                  showSegmentPopup(day.id, fromId, toId, a, b, mode, cityName),
+                )
+                line.on('rightclick', () =>
+                  showSegmentMenu(day.id, fromId, toId, mode, cityName),
+                )
                 const d = distanceInMeters(a.lat, a.lng, b.lat, b.lng)
                 const label = new AMap.Text({
-                  text: `${(d / 1000).toFixed(1)} km (直线)`,
+                  text: `${TRANSPORT_ICON[mode]} ${(d / 1000).toFixed(1)} km (直线)`,
                   position: [(a.lng + b.lng) / 2, (a.lat + b.lat) / 2],
                   style: {
                     'background-color': 'rgba(255,255,255,0.9)',
@@ -469,7 +588,7 @@ export function MapPanel({
       return
     }
 
-    const src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(amapKey)}&plugin=AMap.Geocoder,AMap.Driving,AMap.AutoComplete,AMap.PlaceSearch`
+    const src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(amapKey)}&plugin=AMap.Geocoder,AMap.Driving,AMap.Walking,AMap.Transfer,AMap.Riding,AMap.AutoComplete,AMap.PlaceSearch`
 
     const script = document.createElement('script')
     script.src = src
@@ -513,7 +632,15 @@ export function MapPanel({
     mapRef.current = map
     infoWindowRef.current = new window.AMap.InfoWindow({ offset: new window.AMap.Pixel(0, -30) })
     window.AMap.plugin(
-      ['AMap.Geocoder', 'AMap.Driving', 'AMap.AutoComplete', 'AMap.PlaceSearch'],
+      [
+        'AMap.Geocoder',
+        'AMap.Driving',
+        'AMap.Walking',
+        'AMap.Transfer',
+        'AMap.Riding',
+        'AMap.AutoComplete',
+        'AMap.PlaceSearch',
+      ],
       () => {},
     )
 
