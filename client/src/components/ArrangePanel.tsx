@@ -277,7 +277,7 @@ function DayCard({
   return (
     <section
       ref={setDropRef}
-      className={`overflow-hidden rounded-xl border bg-white shadow-sm ring-1 ring-slate-900/[0.03] transition ${
+      className={`warm-card shadow-stone-sm overflow-hidden border bg-[#f8f2e4] transition ${
         isOver ? 'border-teal-400 ring-2 ring-teal-200' : 'border-slate-200/80'
       }`}
     >
@@ -380,7 +380,7 @@ function PoolDropArea({
   return (
     <section
       ref={setNodeRef}
-      className={`shrink-0 overflow-hidden rounded-xl border bg-white shadow-sm ring-1 ring-slate-900/[0.03] transition ${
+      className={`warm-card shadow-stone-sm shrink-0 overflow-hidden border bg-[#f8f2e4] transition ${
         isOver
           ? 'border-amber-400 ring-2 ring-amber-200'
           : isDraggingFromDay

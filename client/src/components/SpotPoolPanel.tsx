@@ -92,7 +92,7 @@ export function SpotPoolPanel() {
   )
 
   return (
-    <section className="flex min-h-[12rem] flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-900/[0.03]">
+    <section className="warm-card shadow-stone-sm flex min-h-[12rem] flex-1 flex-col overflow-hidden border border-slate-200/80 bg-[#f8f2e4]">
       <header className="flex shrink-0 flex-col gap-1.5 border-b border-slate-100 bg-slate-50/80 px-3 py-2">
         <div className="flex items-center justify-between gap-2">
           <div>

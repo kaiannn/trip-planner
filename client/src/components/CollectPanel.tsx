@@ -123,10 +123,10 @@ export function CollectPanel({ className }: { className?: string }) {
 
       <SpotPoolPanel />
 
-      <div className="sticky bottom-0 shrink-0 border-t border-slate-200/60 bg-white/95 px-0.5 pt-2 pb-0.5 backdrop-blur">
+      <div className="sticky bottom-0 shrink-0 border-t border-slate-200/60 bg-[#ece3d5]/95 px-0.5 pt-2 pb-0.5 backdrop-blur">
         <Btn
           variant="primary"
-          className={`w-full justify-center !py-2.5 text-sm font-semibold ${
+          className={`stone-button shadow-stone w-full justify-center !py-3.5 font-serif text-[15px] font-semibold ${
             canProceed ? '' : 'opacity-50'
           }`}
           onClick={handleDone}
@@ -134,7 +134,7 @@ export function CollectPanel({ className }: { className?: string }) {
           完成,开始安排 →
         </Btn>
         {!canProceed && (
-          <p className="mt-1 text-center text-[10px] text-slate-400">
+          <p className="mt-1 text-center text-[10px] text-slate-500">
             至少需要一个城市和一个景点
           </p>
         )}

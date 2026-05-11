@@ -23,26 +23,28 @@ export function AiSeedPanel() {
       aiSeedStatus.startsWith('第 ') /* "第 N 次失败:..." retry trace */)
 
   return (
-    <section className="shrink-0 rounded-2xl border border-teal-200/70 bg-gradient-to-br from-teal-50/60 to-white p-3 shadow-sm ring-1 ring-teal-900/[0.03]">
+    <section className="stone-1 shadow-stone shrink-0 border border-teal-200/60 bg-gradient-to-br from-teal-50 to-[#f1ebdf] p-4">
       <div className="mb-2 flex items-center gap-2">
         <span
-          className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold text-white shadow-sm ${
+          className={`stone-button flex h-8 w-8 items-center justify-center font-serif text-xs font-bold text-white shadow-stone-sm ${
             loading ? 'animate-pulse bg-teal-500' : 'bg-teal-600'
           }`}
         >
           AI
         </span>
         <div>
-          <div className="text-sm font-semibold text-slate-800">告诉我你想去哪</div>
-          <div className="text-[11px] text-slate-500">
-            我会把候选景点直接放进下面的池子，你来决定怎么安排
+          <div className="font-serif text-[15px] font-semibold text-slate-800">
+            告诉我你想去哪
+          </div>
+          <div className="text-[11px] text-slate-600">
+            候选景点会进下面的池子
           </div>
         </div>
       </div>
       <textarea
         rows={3}
-        className="w-full resize-y rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[13px] leading-relaxed text-slate-800 shadow-inner placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100"
-        placeholder="例：杭州 4 天，和我伴侣，喜欢安静的地方、好吃的小馆子，想看一个标志性景点。"
+        className="w-full resize-y rounded-[18px_8px_16px_10px] border border-slate-200 bg-[#fdfaf3] px-3 py-2 text-[13px] leading-relaxed text-slate-800 shadow-inner placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100"
+        placeholder="例:杭州 4 天,和伴侣,喜欢安静的地方、好吃的小馆子,想看一个标志性景点。"
         value={aiSeedInput}
         onChange={(e) => setAiSeedInput(e.target.value)}
         disabled={loading}
@@ -59,13 +61,13 @@ export function AiSeedPanel() {
             {loading ? '生成中…' : failed ? '重试' : '帮我填景点池'}
           </Btn>
           {failed && (
-            <span className="text-[10px] text-red-500">⚠ 上次失败</span>
+            <span className="text-[10px] text-red-600">⚠ 上次失败</span>
           )}
         </div>
         {aiSeedStatus && (
           <span
             className={`truncate text-[11px] ${
-              failed ? 'text-red-600' : 'text-slate-500'
+              failed ? 'text-red-700' : 'text-slate-600'
             }`}
           >
             {aiSeedStatus}

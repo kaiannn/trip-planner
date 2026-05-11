@@ -1,20 +1,97 @@
 @import 'tailwindcss';
 
 /*
- * 字体：改下面 --font-sans，并在 index.html 里换成对应的 Google Fonts <link>。
- * 常见搭配：Inter + Noto Sans SC（当前）| DM Sans + Noto Sans SC | 仅用系统字体则写 system-ui 栈即可。
+ * "Wet stone on kraft paper" — Morandi-natural palette.
+ *
+ * Override Tailwind's teal/slate color scales so existing utility
+ * classes (bg-teal-600, text-slate-700, ...) get their meaning
+ * remapped without touching a single component className. All of
+ * Tailwind's other scales stay intact as fallbacks.
+ *
+ * Accent scales:
+ *   teal-*   → sage green (primary accent, was brand teal)
+ *   slate-*  → warm ink / kraft tones (was cool grey)
+ *   amber-*  → sandstone / clay (warning remains readable)
+ *   sky-*    → dusk purple (secondary accent)
  */
 @theme {
   --font-sans:
     'Inter', 'Noto Sans SC', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
     'Segoe UI Emoji';
-  --color-brand-50: #f0fdfa;
-  --color-brand-100: #ccfbf1;
-  --color-brand-500: #14b8a6;
-  --color-brand-600: #0d9488;
-  --color-brand-700: #0f766e;
-  --color-brand-800: #115e59;
-  --color-brand-900: #134e4a;
+  --font-serif:
+    'DM Serif Display', 'Noto Serif SC', Georgia, serif;
+
+  /* Sage green (was teal) */
+  --color-teal-50:  #f1f3ee;
+  --color-teal-100: #e1e7da;
+  --color-teal-200: #c6d2ba;
+  --color-teal-300: #a7b898;
+  --color-teal-400: #8a9c80;
+  --color-teal-500: #748866;
+  --color-teal-600: #5f7354;
+  --color-teal-700: #4d5d45;
+  --color-teal-800: #3d4a38;
+  --color-teal-900: #2f392c;
+
+  /* Warm ink + kraft (was cool slate) */
+  --color-slate-50:  #f5f0e6;
+  --color-slate-100: #ebe4d3;
+  --color-slate-200: #d8cfba;
+  --color-slate-300: #bdb199;
+  --color-slate-400: #a39679;
+  --color-slate-500: #867a5f;
+  --color-slate-600: #6a6049;
+  --color-slate-700: #524a39;
+  --color-slate-800: #3f3a2e;
+  --color-slate-900: #2d2921;
+
+  /* Sandstone / clay (was amber) */
+  --color-amber-50:  #f5ecdd;
+  --color-amber-100: #ead8ba;
+  --color-amber-200: #dcbf95;
+  --color-amber-300: #c9a473;
+  --color-amber-400: #b88a58;
+  --color-amber-500: #a87240;
+  --color-amber-600: #8a5e35;
+  --color-amber-700: #6f4b2b;
+  --color-amber-800: #563a22;
+  --color-amber-900: #3e2a19;
+
+  /* Dusk purple (was sky) */
+  --color-sky-50:  #f1eef0;
+  --color-sky-100: #e0dbe2;
+  --color-sky-200: #c8c0cb;
+  --color-sky-300: #aea3b3;
+  --color-sky-400: #9b8aa0;
+  --color-sky-500: #83738b;
+  --color-sky-600: #6b5d72;
+  --color-sky-700: #554a5b;
+  --color-sky-800: #413843;
+  --color-sky-900: #2e282f;
+
+  /* Soft moss / emerald — used for the day-realism chip */
+  --color-emerald-50:  #ecefe6;
+  --color-emerald-100: #d4dcc6;
+  --color-emerald-200: #b4c09e;
+  --color-emerald-300: #93a477;
+  --color-emerald-400: #748a58;
+  --color-emerald-500: #5b7143;
+  --color-emerald-600: #475934;
+  --color-emerald-700: #374527;
+  --color-emerald-800: #28321c;
+  --color-emerald-900: #1a2113;
+
+  /* Red softened to faded burgundy */
+  --color-red-50:  #f4e6e3;
+  --color-red-100: #e4c4bd;
+  --color-red-200: #d19d91;
+  --color-red-300: #ba7666;
+  --color-red-400: #a25849;
+  --color-red-500: #88443a;
+  --color-red-600: #6f382f;
+  --color-red-700: #572c26;
+  --color-red-800: #3f211c;
+  --color-red-900: #2a1613;
 }
 
 html {
@@ -28,21 +105,81 @@ html {
     'calt' 1;
 }
 
+/* ---------- Kraft paper body ----------
+ * Background is a warm kraft paper tone with a procedurally-generated
+ * fiber texture (inline SVG filter, no image download). The texture
+ * is low-opacity so text stays legible.
+ */
 body {
-  @apply m-0 min-h-dvh font-sans text-base leading-relaxed text-slate-900 antialiased;
-  background-color: #f1f5f9;
+  @apply m-0 min-h-dvh font-sans text-base leading-relaxed text-slate-800 antialiased;
+  background-color: #e8dfd1;
   background-image:
-    radial-gradient(ellipse 90% 60% at 50% -25%, rgba(45, 212, 191, 0.09), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 100% 0%, rgba(148, 163, 184, 0.12), transparent 45%),
-    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 40%, #eef2f7 100%);
+    /* Warm vignette */
+    radial-gradient(ellipse 100% 70% at 50% -20%, rgba(201, 164, 115, 0.14), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 100% 0%, rgba(155, 138, 160, 0.10), transparent 45%),
+    /* Paper fiber noise (inline SVG) */
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.36 0 0 0 0 0.30 0 0 0 0 0.22 0 0 0 0.13 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
+    linear-gradient(180deg, #ece3d5 0%, #e6ddce 40%, #ded4c3 100%);
+  background-blend-mode: normal, normal, multiply, normal;
 }
 
 #root {
   @apply min-h-dvh;
 }
 
-/* Fade + subtle slide for app-mode transitions. The animated element
- * is keyed by appMode, so flipping modes remounts and replays this. */
+/* ---------- Serif display type ----------
+ * Used on h1/h2 that carry weight; body stays sans for legibility.
+ */
+.font-serif {
+  font-family: var(--font-serif);
+  letter-spacing: -0.01em;
+}
+
+h1, h2 {
+  font-family: var(--font-serif);
+  letter-spacing: -0.01em;
+  color: #3f3a2e;
+}
+
+/* ---------- Wet stone — irregular blob radii ---------- */
+.stone-1 {
+  border-radius: 67% 33% 64% 36% / 41% 59% 38% 62%;
+}
+.stone-2 {
+  border-radius: 58% 42% 38% 62% / 52% 48% 58% 42%;
+}
+.stone-3 {
+  border-radius: 42% 58% 54% 46% / 60% 44% 56% 40%;
+}
+.stone-button {
+  border-radius: 45% 55% 50% 50% / 55% 48% 52% 45%;
+}
+
+/* Asymmetric soft corners for day cards (not full blob, just warm). */
+.warm-card {
+  border-radius: 18px 8px 16px 10px;
+}
+
+/* ---------- Table-heavy shadows ----------
+ * Only cast downward, no halo — objects feel "placed on" the paper.
+ */
+.shadow-stone {
+  box-shadow:
+    0 10px 20px -8px rgba(63, 58, 46, 0.20),
+    0 4px 8px -2px rgba(63, 58, 46, 0.10);
+}
+.shadow-stone-sm {
+  box-shadow:
+    0 6px 12px -6px rgba(63, 58, 46, 0.16),
+    0 2px 4px -1px rgba(63, 58, 46, 0.08);
+}
+.shadow-stone-lg {
+  box-shadow:
+    0 20px 40px -16px rgba(63, 58, 46, 0.28),
+    0 8px 16px -6px rgba(63, 58, 46, 0.14);
+}
+
+/* Fade + subtle slide for app-mode transitions. */
 @keyframes fade-slide {
   0% {
     opacity: 0;

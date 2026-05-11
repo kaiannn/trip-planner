@@ -19,9 +19,9 @@ export function Header() {
   const needsUserKeys = useSettingsStore((s) => s.needsUserKeys)
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 shadow-sm backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-slate-300/50 bg-[#ede3cf]/90 shadow-stone-sm backdrop-blur-xl">
       <div className="mx-auto max-w-[1600px] px-4 py-3 md:px-6">
-        <h1 className="mb-3 text-lg font-bold tracking-tight text-slate-900 md:text-xl">旅游攻略行程规划</h1>
+        <h1 className="font-serif mb-3 text-xl font-bold tracking-tight text-slate-900 md:text-2xl">旅程攻略</h1>
         <div className="rounded-xl border border-slate-200/70 bg-slate-50/50 p-3 shadow-inner ring-1 ring-slate-900/[0.03]">
           <div className="flex flex-wrap items-end gap-2 md:gap-2.5">
             <Field label="行程标题">
