@@ -540,6 +540,7 @@ export const useTripStore = create<TripState & TripActions>()(
     // If the AI provided real coords, use them directly.
     if (typeof item.lat === 'number' && typeof item.lng === 'number') {
       const spot: Spot = {
+        kind: 'sight',
         id: uid('spot_ai'),
         cityId: city.id,
         name,
@@ -580,6 +581,7 @@ export const useTripStore = create<TripState & TripActions>()(
         }
         const loc = result.geocodes[0].location
         const spot: Spot = {
+          kind: 'sight',
           id: uid('spot_ai'),
           cityId: city.id,
           name,
@@ -662,6 +664,7 @@ export const useTripStore = create<TripState & TripActions>()(
         if (address) metaParts.push(address)
         if (rating) metaParts.push(`评分约 ${rating}`)
         spots.push({
+          kind: 'sight',
           id: uid('spot_amap'),
           cityId: city.id,
           name,
@@ -727,6 +730,7 @@ export const useTripStore = create<TripState & TripActions>()(
         if (address) metaParts.push(address)
         if (rating) metaParts.push(`评分约 ${rating}`)
         spots.push({
+          kind: 'sight',
           id: uid('spot_amap_ai'),
           cityId: city.id,
           name,
@@ -786,6 +790,7 @@ export const useTripStore = create<TripState & TripActions>()(
       if (address) metaParts.push(address)
       if (rating) metaParts.push(`评分约 ${rating}`)
       spots.push({
+        kind: 'sight',
         id: uid('spot_amap_seed'),
         cityId: city.id,
         name,
@@ -858,6 +863,7 @@ export const useTripStore = create<TripState & TripActions>()(
           }
           const id = uid('spot_ai_day')
           spots.push({
+            kind: 'sight',
             id,
             cityId: city.id,
             name,
@@ -1060,11 +1066,14 @@ export const useTripStore = create<TripState & TripActions>()(
         continue
       }
       const ok = get().addSpot({
+        kind: c.kind ?? 'sight',
         cityId: matched.id,
         name: c.name,
         location: loc,
         description: c.description,
-      })
+        ...(c.kind === 'hotel' && c.price ? { price: c.price } : {}),
+        ...(c.kind === 'restaurant' && c.link ? { link: c.link } : {}),
+      } as Omit<Spot, 'id'>)
       if (ok) added += 1
     }
 
@@ -1134,6 +1143,23 @@ export const useTripStore = create<TripState & TripActions>()(
 }),
     {
       name: 'trip-planner-storage',
+      version: 2,
+      migrate: (persistedState) => {
+        // v2: Spot gained a discriminated `kind`. Anything stored before
+        // is a sight — tag it so the new type guards don't choke.
+        const s = persistedState as
+          | { spots?: Array<{ kind?: string }> }
+          | undefined
+        if (s?.spots?.length) {
+          s.spots = s.spots.map((sp) =>
+            sp && typeof sp === 'object' && !('kind' in sp)
+              ? { ...sp, kind: 'sight' }
+              : sp,
+          )
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return s as any
+      },
       partialize: (state) => ({
         cities: state.cities,
         spots: state.spots,

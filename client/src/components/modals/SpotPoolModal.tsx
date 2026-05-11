@@ -3,6 +3,7 @@ import { useTripStore } from '../../store/tripStore'
 import { Btn, Field } from '../ui'
 import { SpotImage } from '../SpotImage'
 import { PlaceAutoComplete } from '../PlaceAutoComplete'
+import type { Spot } from '../../types'
 
 export function SpotPoolModal() {
   const open = useTripStore((s) => s.spotPoolOpen)
@@ -100,6 +101,7 @@ export function SpotPoolModal() {
       ? xhs.split(/[,，\s]+/).map((s) => s.trim()).filter(Boolean)
       : undefined
     const ok = addSpot({
+      kind: 'sight',
       cityId: spotCityId,
       name: spotName.trim(),
       location: { lat, lng },
@@ -110,7 +112,7 @@ export function SpotPoolModal() {
       description: description.trim() || undefined,
       videoUrl: videoUrl.trim() || undefined,
       xiaohongshuUrls: xhsUrls,
-    })
+    } as Omit<Spot, 'id'>)
     if (ok) resetForm()
   }
 

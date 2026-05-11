@@ -19,6 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useMemo, useState } from 'react'
 import { distanceInMeters } from '../lib/geo'
+import { SPOT_KIND_ICON, SPOT_KIND_LABEL, spotKind } from '../lib/spotKind'
 import { useTripStore } from '../store/tripStore'
 import type { Spot } from '../types'
 import { Btn } from './ui'
@@ -103,11 +104,12 @@ function PoolChip({
   const setSpotDetail = useTripStore((s) => s.setSpotDetail)
   const focused = useTripStore((s) => s.mapFocusSpotId === spot.id)
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id })
+  const k = spotKind(spot)
   return (
     <div
       ref={setNodeRef}
       onContextMenu={(e) => onContext(e, spot)}
-      className={`group inline-flex items-center gap-0.5 overflow-hidden rounded-full border bg-white shadow-sm transition ${
+      className={`group inline-flex items-center gap-1 overflow-hidden rounded-full border bg-white shadow-sm transition ${
         isDragging
           ? 'opacity-30'
           : focused
@@ -121,11 +123,13 @@ function PoolChip({
         onDoubleClick={() => setSpotDetail(spot)}
         {...listeners}
         {...attributes}
-        className={`cursor-grab touch-none px-2.5 py-1 text-[11px] font-medium active:cursor-grabbing ${
+        className={`flex cursor-grab touch-none items-center gap-1 px-2.5 py-1 text-[11px] font-medium active:cursor-grabbing ${
           focused ? 'text-teal-800' : 'text-slate-700'
         }`}
+        title={SPOT_KIND_LABEL[k]}
       >
-        {spot.name}
+        <span>{SPOT_KIND_ICON[k]}</span>
+        <span>{spot.name}</span>
       </button>
       <button
         type="button"
@@ -195,6 +199,7 @@ function DayRow({
         onDoubleClick={() => setSpotDetail(spot)}
         className="flex-1 truncate text-left font-medium hover:text-teal-700"
       >
+        <span className="mr-1">{SPOT_KIND_ICON[spotKind(spot)]}</span>
         {spot.name}
       </button>
       <button

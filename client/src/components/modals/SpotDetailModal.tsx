@@ -4,14 +4,19 @@ import { Btn, Field, inputClass } from '../ui'
 import { SpotImage } from '../SpotImage'
 import { resizeImage } from '../../lib/imageResize'
 import { saveImageBlob, deleteImageBlob, getImageBlob } from '../../lib/imageStorage'
+import {
+  SPOT_KIND_ICON,
+  SPOT_KIND_LABEL,
+  spotKind,
+} from '../../lib/spotKind'
+import type { Spot, SpotKind } from '../../types'
 
 /**
  * Spot detail + full editor.
  *
- * Opens whenever spotDetailSpot is set in the store. Shows every field
- * as an editable input. Save writes back via updateSpot(). "Re-capture
- * on map" button sets pendingMapCoords and hints the user to right-click
- * the map — same coord-capture flow used by the add-spot form.
+ * Opens whenever spotDetailSpot is set in the store. Renders fields
+ * conditionally based on spot.kind: hotels show price, restaurants show
+ * link, sights keep all the existing content fields.
  */
 export function SpotDetailModal() {
   const spot = useTripStore((s) => s.spotDetailSpot)
@@ -29,45 +34,114 @@ export function SpotDetailModal() {
   )
 
   // Editable local state — synced from the spot whenever a different
-  // spot is opened. Keeps edits out of the global store until Save.
-  const [draft, setDraft] = useState(() => spot)
+  // spot is opened. Stored as a "draft Spot" with extra optional fields
+  // so we don't have to re-narrow on every change.
+  type DraftSpot = Spot & {
+    visitTimeText?: string
+    innerTransport?: string
+    imageUrl?: string
+    imageBlobId?: string
+    description?: string
+    guideUrl?: string
+    videoUrl?: string
+    xiaohongshuUrls?: string[]
+    price?: string
+    link?: string
+  }
+  const [draft, setDraft] = useState<DraftSpot | null>(() =>
+    spot ? (spot as DraftSpot) : null,
+  )
   useEffect(() => {
-    setDraft(spot)
+    setDraft(spot ? (spot as DraftSpot) : null)
   }, [spot?.id])
 
   if (!spot || !draft) return null
 
-  const setField = <K extends keyof typeof draft>(
-    key: K,
-    value: (typeof draft)[K],
-  ) => {
-    setDraft((d) => (d ? { ...d, [key]: value } : d))
+  const kind = spotKind(draft)
+
+  const setField = <K extends keyof DraftSpot>(key: K, value: DraftSpot[K]) => {
+    setDraft((d) => (d ? ({ ...d, [key]: value } as DraftSpot) : d))
   }
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(spot)
 
+  const handleKindChange = (newKind: SpotKind) => {
+    if (newKind === kind) return
+    setDraft((d) => {
+      if (!d) return d
+      // Build a fresh object that only carries fields valid for the new kind.
+      // Common fields (name, location, description, image, innerTransport)
+      // always survive; kind-specific ones are dropped to keep the type clean.
+      const base: DraftSpot = {
+        kind: newKind,
+        id: d.id,
+        cityId: d.cityId,
+        name: d.name,
+        location: d.location,
+        description: d.description,
+        innerTransport: d.innerTransport,
+        imageUrl: d.imageUrl,
+        imageBlobId: d.imageBlobId,
+      } as DraftSpot
+      if (newKind === 'sight') {
+        return {
+          ...base,
+          visitTimeText: d.visitTimeText,
+          guideUrl: d.guideUrl,
+          videoUrl: d.videoUrl,
+          xiaohongshuUrls: d.xiaohongshuUrls,
+        } as DraftSpot
+      }
+      if (newKind === 'hotel') {
+        return { ...base, price: d.price } as DraftSpot
+      }
+      return { ...base, link: d.link } as DraftSpot
+    })
+  }
+
   const handleSave = () => {
     if (!draft) return
-    // Clean up: treat empty strings as undefined so we don't store "" in Zustand.
-    const cleaned = {
+    const cleanedCommon = {
+      kind,
       name: draft.name.trim(),
       cityId: draft.cityId,
       location: draft.location,
       description: draft.description?.trim() || undefined,
-      visitTimeText: draft.visitTimeText?.trim() || undefined,
       innerTransport: draft.innerTransport?.trim() || undefined,
-      guideUrl: draft.guideUrl?.trim() || undefined,
       imageUrl: draft.imageUrl?.trim() || undefined,
       imageBlobId: draft.imageBlobId,
-      videoUrl: draft.videoUrl?.trim() || undefined,
-      xiaohongshuUrls: draft.xiaohongshuUrls?.length ? draft.xiaohongshuUrls : undefined,
+    }
+    let cleaned: Partial<Spot>
+    if (kind === 'sight') {
+      cleaned = {
+        ...cleanedCommon,
+        kind: 'sight',
+        visitTimeText: draft.visitTimeText?.trim() || undefined,
+        guideUrl: draft.guideUrl?.trim() || undefined,
+        videoUrl: draft.videoUrl?.trim() || undefined,
+        xiaohongshuUrls: draft.xiaohongshuUrls?.length
+          ? draft.xiaohongshuUrls
+          : undefined,
+      }
+    } else if (kind === 'hotel') {
+      cleaned = {
+        ...cleanedCommon,
+        kind: 'hotel',
+        price: draft.price?.trim() || undefined,
+      }
+    } else {
+      cleaned = {
+        ...cleanedCommon,
+        kind: 'restaurant',
+        link: draft.link?.trim() || undefined,
+      }
     }
     if (!cleaned.name) {
       pushLog('景点名称不能为空。', 'warn')
       return
     }
     updateSpot(spot.id, cleaned)
-    pushLog(`已更新景点：${cleaned.name}`)
+    pushLog(`已更新${SPOT_KIND_LABEL[kind]}:${cleaned.name}`)
     setSpotDetail(null)
   }
 
@@ -82,7 +156,7 @@ export function SpotDetailModal() {
 
   // Video preview unchanged from the old read-only version.
   let videoPreview: React.ReactNode = null
-  if (draft.videoUrl) {
+  if (kind === 'sight' && draft.videoUrl) {
     const url = draft.videoUrl.trim()
     const bvMatch = url.match(/(BV[\w]+)/i)
     const avMatch = url.match(/video\/av(\d+)/i)
@@ -114,7 +188,7 @@ export function SpotDetailModal() {
         <header className="sticky top-0 flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/95 px-4 py-3 backdrop-blur">
           <div className="min-w-0">
             <h3 className="truncate text-base font-semibold text-slate-900">
-              编辑景点
+              {SPOT_KIND_ICON[kind]} 编辑{SPOT_KIND_LABEL[kind]}
             </h3>
             <p className="truncate text-[11px] text-slate-500">
               {dirty ? '有未保存的修改' : '所有字段均为已保存值'}
@@ -125,7 +199,7 @@ export function SpotDetailModal() {
               variant="secondary"
               className="!text-xs text-red-700"
               onClick={() => {
-                if (!window.confirm(`确认删除景点「${spot.name}」?`)) return
+                if (!window.confirm(`确认删除「${spot.name}」?`)) return
                 removeSpot(spot.id)
                 setSpotDetail(null)
               }}
@@ -152,7 +226,27 @@ export function SpotDetailModal() {
         </header>
 
         <div className="grid gap-3 p-4 text-sm sm:grid-cols-2">
-          <Field label="景点名称 *" className="sm:col-span-2">
+          <Field label="类型" className="sm:col-span-2">
+            <div className="flex gap-1.5">
+              {(['sight', 'hotel', 'restaurant'] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => handleKindChange(k)}
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[12px] font-medium transition ${
+                    k === kind
+                      ? 'border-teal-400 bg-teal-50 text-teal-800 ring-2 ring-teal-200'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50/40'
+                  }`}
+                >
+                  <span>{SPOT_KIND_ICON[k]}</span>
+                  <span>{SPOT_KIND_LABEL[k]}</span>
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <Field label="名称 *" className="sm:col-span-2">
             <input
               className={inputClass}
               value={draft.name}
@@ -174,20 +268,53 @@ export function SpotDetailModal() {
             </select>
           </Field>
 
-          <Field label="建议游玩时长">
-            <input
-              className={inputClass}
-              placeholder="例:2-3 小时"
-              value={draft.visitTimeText ?? ''}
-              onChange={(e) => setField('visitTimeText', e.target.value)}
-            />
-          </Field>
+          {kind === 'sight' && (
+            <Field label="建议游玩时长">
+              <input
+                className={inputClass}
+                placeholder="例:2-3 小时"
+                value={draft.visitTimeText ?? ''}
+                onChange={(e) => setField('visitTimeText', e.target.value)}
+              />
+            </Field>
+          )}
 
-          <Field label="介绍" className="sm:col-span-2">
+          {kind === 'hotel' && (
+            <Field label="价格">
+              <input
+                className={inputClass}
+                placeholder="例:¥400/晚"
+                value={draft.price ?? ''}
+                onChange={(e) => setField('price', e.target.value)}
+              />
+            </Field>
+          )}
+
+          {kind === 'restaurant' && (
+            <Field label="链接(预订 / 点评 / 菜单)" className="sm:col-span-2">
+              <input
+                className={inputClass}
+                placeholder="https://..."
+                value={draft.link ?? ''}
+                onChange={(e) => setField('link', e.target.value)}
+              />
+            </Field>
+          )}
+
+          <Field
+            label={kind === 'sight' ? '介绍' : '备注'}
+            className="sm:col-span-2"
+          >
             <textarea
               rows={3}
               className={`${inputClass} resize-y`}
-              placeholder="景点简要介绍"
+              placeholder={
+                kind === 'sight'
+                  ? '景点简要介绍'
+                  : kind === 'hotel'
+                    ? '房型、是否含早、关注点等'
+                    : '招牌菜、人均、注意事项等'
+              }
               value={draft.description ?? ''}
               onChange={(e) => setField('description', e.target.value)}
             />
@@ -211,53 +338,59 @@ export function SpotDetailModal() {
             />
           </Field>
 
-          <Field label="攻略链接">
-            <input
-              className={inputClass}
-              placeholder="https://..."
-              value={draft.guideUrl ?? ''}
-              onChange={(e) => setField('guideUrl', e.target.value)}
-            />
-          </Field>
+          {kind === 'sight' && (
+            <Field label="攻略链接">
+              <input
+                className={inputClass}
+                placeholder="https://..."
+                value={draft.guideUrl ?? ''}
+                onChange={(e) => setField('guideUrl', e.target.value)}
+              />
+            </Field>
+          )}
 
-          <Field label="视频链接">
-            <input
-              className={inputClass}
-              placeholder="B站 / YouTube"
-              value={draft.videoUrl ?? ''}
-              onChange={(e) => setField('videoUrl', e.target.value)}
-            />
-          </Field>
+          {kind === 'sight' && (
+            <Field label="视频链接">
+              <input
+                className={inputClass}
+                placeholder="B站 / YouTube"
+                value={draft.videoUrl ?? ''}
+                onChange={(e) => setField('videoUrl', e.target.value)}
+              />
+            </Field>
+          )}
 
           <Field label="交通方式">
             <input
               className={inputClass}
-              placeholder="例:地铁1号线"
+              placeholder="例:地铁1号线 / 距景区步行 5 分钟"
               value={draft.innerTransport ?? ''}
               onChange={(e) => setField('innerTransport', e.target.value)}
             />
           </Field>
 
-          <Field label="小红书(一行一条)" className="sm:col-span-2">
-            <textarea
-              rows={2}
-              className={`${inputClass} resize-y`}
-              placeholder="每行贴一个链接"
-              value={xhsJoined}
-              onChange={(e) => {
-                const list = e.target.value
-                  .split(/[\n,]/)
-                  .map((s) => s.trim())
-                  .filter(Boolean)
-                setField(
-                  'xiaohongshuUrls',
-                  list.length > 0 ? list : undefined,
-                )
-              }}
-            />
-          </Field>
+          {kind === 'sight' && (
+            <Field label="小红书(一行一条)" className="sm:col-span-2">
+              <textarea
+                rows={2}
+                className={`${inputClass} resize-y`}
+                placeholder="每行贴一个链接"
+                value={xhsJoined}
+                onChange={(e) => {
+                  const list = e.target.value
+                    .split(/[\n,]/)
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                  setField(
+                    'xiaohongshuUrls',
+                    list.length > 0 ? list : undefined,
+                  )
+                }}
+              />
+            </Field>
+          )}
 
-          {/* Coords — read-only display + "right-click map to re-capture" helper */}
+          {/* Coords */}
           <div className="sm:col-span-2">
             <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-2.5">
               <div className="flex items-center justify-between gap-2">
@@ -286,7 +419,6 @@ export function SpotDetailModal() {
           </div>
         </div>
 
-        {/* Previews */}
         {(draft.imageBlobId || draft.imageUrl || videoPreview) && (
           <div className="space-y-3 border-t border-slate-100 bg-slate-50/40 p-4">
             {(draft.imageBlobId || draft.imageUrl) && (
@@ -340,7 +472,6 @@ function ImagePicker({
   const [stats, setStats] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Reload thumbnail whenever the bound blobId changes.
   useEffect(() => {
     setThumbUrl(null)
     if (!blobId) return
@@ -451,7 +582,7 @@ function ImagePicker({
 
       <div className="min-w-0 flex-1 text-[12px] text-slate-600">
         <div className="font-medium text-slate-800">
-          {blobId ? '已保存到本地' : '上传景点图片'}
+          {blobId ? '已保存到本地' : '上传图片'}
         </div>
         <div className="mt-0.5 truncate text-[11px] text-slate-500">
           {busy

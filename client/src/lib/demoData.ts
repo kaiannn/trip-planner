@@ -14,6 +14,8 @@ const ID = {
   spotSongcheng: 'demo_spot_songcheng',
   spotHefangStreet: 'demo_spot_hefang',
   spotTigerSpring: 'demo_spot_hupao',
+  hotelXihu: 'demo_hotel_xihu',
+  restaurantLouwailou: 'demo_rest_louwailou',
   day1: 'demo_day_1',
   day2: 'demo_day_2',
   day3: 'demo_day_3',
@@ -31,6 +33,7 @@ export const DEMO_CITIES: City[] = [
 // Rough public coordinates of well-known Hangzhou spots (AMap GCJ-02).
 export const DEMO_SPOTS: Spot[] = [
   {
+    kind: 'sight',
     id: ID.spotWestLake,
     cityId: ID.cityHangzhou,
     name: '西湖',
@@ -39,6 +42,7 @@ export const DEMO_SPOTS: Spot[] = [
     visitTimeText: '3-4 小时',
   },
   {
+    kind: 'sight',
     id: ID.spotLingyin,
     cityId: ID.cityHangzhou,
     name: '灵隐寺',
@@ -47,6 +51,7 @@ export const DEMO_SPOTS: Spot[] = [
     visitTimeText: '2-3 小时',
   },
   {
+    kind: 'sight',
     id: ID.spotLeifeng,
     cityId: ID.cityHangzhou,
     name: '雷峰塔',
@@ -55,6 +60,7 @@ export const DEMO_SPOTS: Spot[] = [
     visitTimeText: '1-2 小时',
   },
   {
+    kind: 'sight',
     id: ID.spotHumen,
     cityId: ID.cityHangzhou,
     name: '虎跑泉',
@@ -63,6 +69,7 @@ export const DEMO_SPOTS: Spot[] = [
     visitTimeText: '1-2 小时',
   },
   {
+    kind: 'sight',
     id: ID.spotWuzhen,
     cityId: ID.cityHangzhou,
     name: '乌镇',
@@ -71,6 +78,7 @@ export const DEMO_SPOTS: Spot[] = [
     visitTimeText: '一整天',
   },
   {
+    kind: 'sight',
     id: ID.spotSongcheng,
     cityId: ID.cityHangzhou,
     name: '宋城',
@@ -79,6 +87,7 @@ export const DEMO_SPOTS: Spot[] = [
     visitTimeText: '半天 + 演出',
   },
   {
+    kind: 'sight',
     id: ID.spotHefangStreet,
     cityId: ID.cityHangzhou,
     name: '河坊街',
@@ -87,12 +96,33 @@ export const DEMO_SPOTS: Spot[] = [
     visitTimeText: '1-2 小时',
   },
   {
+    kind: 'sight',
     id: ID.spotTigerSpring,
     cityId: ID.cityHangzhou,
     name: '九溪烟树',
     location: { lat: 30.2011, lng: 120.0994 },
     description: '龙井茶园里的溪水徒步,夏天非常凉快。',
     visitTimeText: '2-3 小时',
+  },
+  {
+    kind: 'hotel',
+    id: ID.hotelXihu,
+    cityId: ID.cityHangzhou,
+    name: '西湖国宾馆',
+    location: { lat: 30.2391, lng: 120.1395 },
+    description: '紧邻西湖,庭院安静,适合放慢脚步。',
+    price: '¥1500/晚',
+    innerTransport: '酒店有班车去市区',
+  },
+  {
+    kind: 'restaurant',
+    id: ID.restaurantLouwailou,
+    cityId: ID.cityHangzhou,
+    name: '楼外楼',
+    location: { lat: 30.25865, lng: 120.13614 },
+    description: '百年杭帮菜老字号。西湖醋鱼、东坡肉、龙井虾仁。',
+    link: 'https://www.dianping.com/shop/loy',
+    innerTransport: '7号线/西湖断桥步行 5 分钟',
   },
 ]
 

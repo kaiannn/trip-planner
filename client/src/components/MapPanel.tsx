@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { MapContext, type MapApi } from '../map/MapContext'
 import { distanceInMeters } from '../lib/geo'
+import {
+  SPOT_KIND_COLOR,
+  SPOT_KIND_ICON,
+  SPOT_KIND_LABEL,
+} from '../lib/spotKind'
 import { useTripStore } from '../store/tripStore'
 import type { City, Spot } from '../types'
 
@@ -304,21 +309,29 @@ export function MapPanel({
         const isPool = !assignedSpotIds.has(spot.id)
         const dayColor = spotColorById.get(spot.id)
         const isFocused = spot.id === mapFocusSpotId
-        const labelBg = dayColor ?? 'rgba(148,163,184,0.9)'
-        const labelWeight = dayColor ? '600' : '500'
+        // Per-kind base color: hotels = red, restaurants = orange.
+        // Sights inherit the day color (or grey for pool).
+        let labelBg: string
+        if (spot.kind === 'hotel') {
+          labelBg = SPOT_KIND_COLOR.hotel
+        } else if (spot.kind === 'restaurant') {
+          labelBg = SPOT_KIND_COLOR.restaurant
+        } else {
+          labelBg = dayColor ?? SPOT_KIND_COLOR.sight
+        }
+        const labelWeight = '600'
+        const icon = SPOT_KIND_ICON[spot.kind]
         // Focused spots get a persistent glow ring via box-shadow layering.
         const labelShadow = isFocused
           ? '0 0 0 2px #fff, 0 0 0 5px rgba(13,148,136,0.75), 0 4px 14px rgba(13,148,136,0.45)'
-          : dayColor
-            ? '0 1px 3px rgba(0,0,0,0.25)'
-            : 'none'
+          : '0 1px 3px rgba(0,0,0,0.25)'
         const marker = new AMap.Marker({
           position: [spot.location.lng, spot.location.lat],
           title: spot.name,
           map,
           zIndex: isFocused ? 200 : isPool ? 50 : 100,
           label: {
-            content: `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:${labelBg};color:#fff;font-size:10px;font-weight:${labelWeight};box-shadow:${labelShadow}">${spot.name}</span>`,
+            content: `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:${labelBg};color:#fff;font-size:10px;font-weight:${labelWeight};box-shadow:${labelShadow}">${icon} ${spot.name}</span>`,
             direction: 'top',
           },
         })
@@ -328,28 +341,52 @@ export function MapPanel({
           const nameDiv = document.createElement('div')
           nameDiv.style.fontWeight = '600'
           nameDiv.style.marginBottom = '4px'
-          nameDiv.textContent = `${isPool ? '池中:' : '景点:'} ${spot.name}`
+          const kindLabel = SPOT_KIND_LABEL[spot.kind]
+          nameDiv.textContent = `${icon} ${kindLabel}${
+            isPool ? '(池)' : ''
+          }: ${spot.name}`
           content.appendChild(nameDiv)
-          if (spot.visitTimeText) {
+          if (spot.kind === 'sight' && spot.visitTimeText) {
             const t = document.createElement('div')
             t.style.fontSize = '11px'
             t.style.color = '#475569'
-            t.textContent = `时间：${spot.visitTimeText}`
+            t.textContent = `时间:${spot.visitTimeText}`
+            content.appendChild(t)
+          }
+          if (spot.kind === 'hotel' && spot.price) {
+            const t = document.createElement('div')
+            t.style.fontSize = '11px'
+            t.style.color = '#475569'
+            t.textContent = `价格:${spot.price}`
             content.appendChild(t)
           }
           if (spot.innerTransport) {
             const t = document.createElement('div')
             t.style.fontSize = '11px'
             t.style.color = '#475569'
-            t.textContent = `交通：${spot.innerTransport}`
+            t.textContent = `交通:${spot.innerTransport}`
             content.appendChild(t)
           }
-          if (spot.guideUrl) {
+          if (spot.kind === 'sight' && spot.guideUrl) {
             const a = document.createElement('a')
             a.href = spot.guideUrl
             a.target = '_blank'
             a.rel = 'noopener noreferrer'
             a.textContent = '攻略链接'
+            a.style.color = '#0d9488'
+            a.style.textDecoration = 'underline'
+            const wrap = document.createElement('div')
+            wrap.style.marginTop = '4px'
+            wrap.style.fontSize = '11px'
+            wrap.appendChild(a)
+            content.appendChild(wrap)
+          }
+          if (spot.kind === 'restaurant' && spot.link) {
+            const a = document.createElement('a')
+            a.href = spot.link
+            a.target = '_blank'
+            a.rel = 'noopener noreferrer'
+            a.textContent = '查看链接'
             a.style.color = '#0d9488'
             a.style.textDecoration = 'underline'
             const wrap = document.createElement('div')

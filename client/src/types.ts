@@ -5,25 +5,57 @@ export interface City {
   order: number
 }
 
-export interface Spot {
+/** Which category of place this is. Drives colors, icons, and which fields render. */
+export type SpotKind = 'sight' | 'hotel' | 'restaurant'
+
+/**
+ * Fields every pool item shares regardless of kind.
+ * Image (URL or local blob), description ("note"), location, etc.
+ * innerTransport is kept here because the user wants it on hotels
+ * and restaurants too (useful for "how do I get there from my hotel").
+ */
+interface BaseSpot {
   id: string
   cityId: string
   name: string
   location: { lat: number; lng: number }
-  guideUrl?: string
-  visitTimeText?: string
   innerTransport?: string
   imageUrl?: string
   /**
    * Client-local ID for an image Blob stored in IndexedDB
    * (see lib/imageStorage.ts). When both imageUrl and imageBlobId are
-   * present, the blob takes precedence. Typically equals the spot id.
+   * present, the blob takes precedence.
    */
   imageBlobId?: string
   description?: string
+}
+
+export interface SightSpot extends BaseSpot {
+  kind: 'sight'
+  guideUrl?: string
+  visitTimeText?: string
   videoUrl?: string
   xiaohongshuUrls?: string[]
 }
+
+export interface HotelSpot extends BaseSpot {
+  kind: 'hotel'
+  /** Free-form price tag, e.g. "¥400/晚" or "约 350/晚,含早". */
+  price?: string
+}
+
+export interface RestaurantSpot extends BaseSpot {
+  kind: 'restaurant'
+  /** e.g. reservation link, menu link, 点评 URL. */
+  link?: string
+}
+
+/**
+ * A pool item. TypeScript narrows to one of the three kinds once you
+ * check `spot.kind`, so `spot.price` is accessible only on hotels and
+ * `spot.link` only on restaurants.
+ */
+export type Spot = SightSpot | HotelSpot | RestaurantSpot
 
 export interface DailyLodging {
   name?: string
@@ -81,4 +113,7 @@ export interface AiPoolCandidate {
   description?: string
   lat?: number
   lng?: number
+  kind?: SpotKind
+  price?: string
+  link?: string
 }

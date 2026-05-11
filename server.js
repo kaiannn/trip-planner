@@ -432,12 +432,18 @@ app.post('/api/ai/seed-pool', async (req, res) => {
       : '（用户暂未选择城市，请从描述里推断）';
 
     const sysPrompt =
-      '你在帮用户搜集「可能感兴趣的景点候选」，用于扔进他们的景点池。' +
-      '只输出一个 JSON 对象，不要任何解释文字。' +
-      'JSON 结构为 {"candidates":[{"name":"景点名","cityHint":"所属城市","address":"地址可选","description":"1-2 句话介绍"}]}。' +
-      '至少给 10 个，至多给 20 个。' +
-      '要尽可能贴合用户描述（偏好、人数、节奏），不要只抄 Top-10 热门景点。' +
-      '不要包含住宿、餐厅。只要值得一去的地点、博物馆、公园、自然景观、小众文化点。';
+      '你在帮用户搜集「可能感兴趣的候选地点」,用于扔进他们的景点池。' +
+      '候选包括三种 kind:景点(sight)、酒店(hotel)、餐厅(restaurant)。' +
+      '判断方式:' +
+      '当用户提到「住」「酒店」「民宿」「客栈」「住哪」时,放 hotel。' +
+      '当用户提到「吃」「餐厅」「小馆子」「美食」「饭店」「火锅」「夜宵」时,放 restaurant。' +
+      '其他默认 sight。' +
+      '只输出一个 JSON 对象,不要任何解释文字。' +
+      'JSON 结构为 {"candidates":[{"name":"名称","kind":"sight"或"hotel"或"restaurant","cityHint":"城市","address":"地址可选","description":"1-2 句话介绍","price":"酒店价格,例¥350/晚","link":"餐厅推荐链接,可选"}]}。' +
+      '至少给 10 个,至多给 20 个。' +
+      '要尽可能贴合用户描述(偏好、人数、节奏),不要只抄 Top-10 热门景点。' +
+      '没有提到住和吃就不要包含 hotel / restaurant,以景点为主。' +
+      '提到了就至少给 1-2 个对应类型的候选。';
 
     const url = `${LLM_BASE_URL.replace(/\/$/, '')}/chat/completions`;
     const body = {
@@ -489,14 +495,22 @@ app.post('/api/ai/seed-pool', async (req, res) => {
     const raw = Array.isArray(parsed.candidates) ? parsed.candidates : [];
     const candidates = raw
       .filter((c) => c && typeof c.name === 'string' && c.name.trim())
-      .map((c) => ({
-        name: String(c.name).trim(),
-        cityHint: c.cityHint ? String(c.cityHint).trim() : undefined,
-        address: c.address ? String(c.address).trim() : undefined,
-        description: c.description ? String(c.description).trim() : undefined,
-        lat: typeof c.lat === 'number' ? c.lat : undefined,
-        lng: typeof c.lng === 'number' ? c.lng : undefined,
-      }))
+      .map((c) => {
+        const kindRaw = typeof c.kind === 'string' ? c.kind.toLowerCase() : '';
+        const kind =
+          kindRaw === 'hotel' || kindRaw === 'restaurant' ? kindRaw : 'sight';
+        return {
+          name: String(c.name).trim(),
+          kind,
+          cityHint: c.cityHint ? String(c.cityHint).trim() : undefined,
+          address: c.address ? String(c.address).trim() : undefined,
+          description: c.description ? String(c.description).trim() : undefined,
+          lat: typeof c.lat === 'number' ? c.lat : undefined,
+          lng: typeof c.lng === 'number' ? c.lng : undefined,
+          price: kind === 'hotel' && c.price ? String(c.price).trim() : undefined,
+          link: kind === 'restaurant' && c.link ? String(c.link).trim() : undefined,
+        };
+      })
       .slice(0, 20);
 
     res.json({ candidates });

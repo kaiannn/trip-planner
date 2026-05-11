@@ -85,12 +85,18 @@ export function buildAiPrompt({
   sp.forEach((s) => {
     const city = cs.find((c) => c.id === s.cityId)
     const cityName = city ? city.name : '未知城市'
+    const kindLabel =
+      s.kind === 'hotel' ? '酒店' : s.kind === 'restaurant' ? '餐厅' : '景点'
     lines.push(
-      `- 景点：${s.name}（城市：${cityName}），坐标：(${s.location.lat},${s.location.lng})`,
+      `- ${kindLabel}:${s.name}(城市:${cityName}),坐标:(${s.location.lat},${s.location.lng})`,
     )
-    if (s.visitTimeText) lines.push(`  预计时间：${s.visitTimeText}`)
-    if (s.innerTransport) lines.push(`  城市内交通：${s.innerTransport}`)
-    if (s.guideUrl) lines.push(`  攻略链接：${s.guideUrl}`)
+    if (s.kind === 'sight') {
+      if (s.visitTimeText) lines.push(`  预计时间:${s.visitTimeText}`)
+      if (s.guideUrl) lines.push(`  攻略链接:${s.guideUrl}`)
+    }
+    if (s.kind === 'hotel' && s.price) lines.push(`  价格:${s.price}`)
+    if (s.kind === 'restaurant' && s.link) lines.push(`  链接:${s.link}`)
+    if (s.innerTransport) lines.push(`  城市内交通:${s.innerTransport}`)
   })
   if (!sp.length) {
     lines.push('- （尚未添加任何景点）')
