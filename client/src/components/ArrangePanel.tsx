@@ -22,6 +22,7 @@ import { distanceInMeters } from '../lib/geo'
 import { useTripStore } from '../store/tripStore'
 import type { Spot } from '../types'
 import { Btn } from './ui'
+import { SpotContextMenu, useSpotContextMenu } from './SpotContextMenu'
 
 const DAY_COLORS = [
   '#059669',
@@ -90,30 +91,55 @@ function decodeDropId(id: string):
   return null
 }
 
-function PoolChip({ spot }: { spot: Spot }) {
+function PoolChip({
+  spot,
+  onContext,
+}: {
+  spot: Spot
+  onContext: (e: React.MouseEvent, s: Spot) => void
+}) {
   const id = encodePoolDragId(spot.id)
   const setMapFocusSpotId = useTripStore((s) => s.setMapFocusSpotId)
   const setSpotDetail = useTripStore((s) => s.setSpotDetail)
   const focused = useTripStore((s) => s.mapFocusSpotId === spot.id)
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id })
   return (
-    <button
+    <div
       ref={setNodeRef}
-      type="button"
-      onClick={() => setMapFocusSpotId(spot.id)}
-      onDoubleClick={() => setSpotDetail(spot)}
-      {...listeners}
-      {...attributes}
-      className={`cursor-grab touch-none rounded-full border bg-white px-2.5 py-1 text-[11px] font-medium shadow-sm transition active:cursor-grabbing ${
+      onContextMenu={(e) => onContext(e, spot)}
+      className={`group inline-flex items-center gap-0.5 overflow-hidden rounded-full border bg-white shadow-sm transition ${
         isDragging
           ? 'opacity-30'
           : focused
-            ? 'border-teal-400 text-teal-800 ring-2 ring-teal-200'
-            : 'border-slate-200 text-slate-700 hover:border-teal-300 hover:bg-teal-50/50'
+            ? 'border-teal-400 ring-2 ring-teal-200'
+            : 'border-slate-200 hover:border-teal-300 hover:bg-teal-50/50'
       }`}
     >
-      {spot.name}
-    </button>
+      <button
+        type="button"
+        onClick={() => setMapFocusSpotId(spot.id)}
+        onDoubleClick={() => setSpotDetail(spot)}
+        {...listeners}
+        {...attributes}
+        className={`cursor-grab touch-none px-2.5 py-1 text-[11px] font-medium active:cursor-grabbing ${
+          focused ? 'text-teal-800' : 'text-slate-700'
+        }`}
+      >
+        {spot.name}
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          setSpotDetail(spot)
+        }}
+        className="hidden h-6 w-6 shrink-0 items-center justify-center text-[11px] text-slate-400 transition hover:bg-slate-100 hover:text-teal-700 group-hover:flex"
+        title="编辑"
+        aria-label="编辑"
+      >
+        ✏️
+      </button>
+    </div>
   )
 }
 
@@ -125,6 +151,7 @@ function DayRow({
   onRemove,
   focused,
   onFocus,
+  onContext,
 }: {
   spot: Spot
   dayId: string
@@ -133,6 +160,7 @@ function DayRow({
   onRemove: () => void
   focused: boolean
   onFocus: () => void
+  onContext: (e: React.MouseEvent, s: Spot, dayId: string) => void
 }) {
   const id = encodeDayDragId(dayId, spot.id)
   const setSpotDetail = useTripStore((s) => s.setSpotDetail)
@@ -146,7 +174,8 @@ function DayRow({
     <li
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 transition ${
+      onContextMenu={(e) => onContext(e, spot, dayId)}
+      className={`group flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 transition ${
         isDragging ? 'opacity-30' : ''
       } ${focused ? 'bg-teal-50/60 ring-1 ring-inset ring-teal-300' : ''}`}
     >
@@ -170,9 +199,19 @@ function DayRow({
       </button>
       <button
         type="button"
+        onClick={() => setSpotDetail(spot)}
+        className="shrink-0 rounded px-1 py-0.5 text-[12px] text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-teal-700 group-hover:opacity-100"
+        title="编辑"
+        aria-label="编辑"
+      >
+        ✏️
+      </button>
+      <button
+        type="button"
         onClick={onRemove}
-        className="text-[11px] text-slate-400 hover:text-red-600"
+        className="shrink-0 text-[11px] text-slate-400 hover:text-red-600"
         aria-label="移出该天"
+        title="移出该天"
       >
         ×
       </button>
@@ -187,6 +226,7 @@ function DayCard({
   cityName,
   color,
   spots,
+  onContext,
 }: {
   dayId: string
   dayIndex: number
@@ -194,6 +234,7 @@ function DayCard({
   cityName: string
   color: string
   spots: Spot[]
+  onContext: (e: React.MouseEvent, s: Spot, dayId: string) => void
 }) {
   const setDayPlanOpen = useTripStore((s) => s.setDayPlanOpen)
   const removeSpotFromDay = useTripStore((s) => s.removeSpotFromDay)
@@ -309,6 +350,7 @@ function DayCard({
                 onRemove={() => removeSpotFromDay(spot.id, dayId)}
                 focused={mapFocusSpotId === spot.id}
                 onFocus={() => setMapFocusSpotId(spot.id)}
+                onContext={onContext}
               />
             ))}
           </ol>
@@ -321,9 +363,11 @@ function DayCard({
 function PoolDropArea({
   unassigned,
   isDraggingFromDay,
+  onContext,
 }: {
   unassigned: Spot[]
   isDraggingFromDay: boolean
+  onContext: (e: React.MouseEvent, s: Spot) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: POOL_DROP_ID })
   return (
@@ -356,7 +400,7 @@ function PoolDropArea({
         ) : (
           <div className="flex flex-wrap gap-1">
             {unassigned.map((s) => (
-              <PoolChip key={s.id} spot={s} />
+              <PoolChip key={s.id} spot={s} onContext={onContext} />
             ))}
           </div>
         )}
@@ -386,6 +430,14 @@ export function ArrangePanel({ className }: { className?: string }) {
   const moveSpotBetweenDays = useTripStore((s) => s.moveSpotBetweenDays)
   const removeSpotFromDay = useTripStore((s) => s.removeSpotFromDay)
   const setDaySpotOrder = useTripStore((s) => s.setDaySpotOrder)
+  const menu = useSpotContextMenu()
+
+  const openPoolContext = (e: React.MouseEvent, s: Spot) => {
+    menu.open(e, s)
+  }
+  const openDayContext = (e: React.MouseEvent, s: Spot, dayId: string) => {
+    menu.open(e, s, { removeFromDayId: dayId })
+  }
 
   const sortedDays = useMemo(
     () => dailyPlans.slice().sort((a, b) => a.dayIndex - b.dayIndex),
@@ -527,6 +579,7 @@ export function ArrangePanel({ className }: { className?: string }) {
                   cityName={cityNameOf(day.cityId)}
                   color={color}
                   spots={orderedSpots}
+                  onContext={openDayContext}
                 />
               )
             })
@@ -536,6 +589,7 @@ export function ArrangePanel({ className }: { className?: string }) {
         <PoolDropArea
           unassigned={unassigned}
           isDraggingFromDay={isDraggingFromDay}
+          onContext={openPoolContext}
         />
       </div>
 
@@ -546,6 +600,8 @@ export function ArrangePanel({ className }: { className?: string }) {
           </div>
         ) : null}
       </DragOverlay>
+
+      <SpotContextMenu menu={menu} />
     </DndContext>
   )
 }

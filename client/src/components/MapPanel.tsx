@@ -59,6 +59,7 @@ export function MapPanel({
   const mapRedrawNonce = useTripStore((s) => s.mapRedrawNonce)
   const updateCityLocation = useTripStore((s) => s.updateCityLocation)
   const setPendingMapCoords = useTripStore((s) => s.setPendingMapCoords)
+  const setSpotDetail = useTripStore((s) => s.setSpotDetail)
   const pushLog = useTripStore((s) => s.pushLog)
   /** Track whether we've ever fit the view yet — gates the initial fit-view. */
   const hasInitialFitRef = useRef(false)
@@ -323,16 +324,23 @@ export function MapPanel({
         })
         marker.on('click', () => {
           const content = document.createElement('div')
+          content.className = 'amap-info-content'
           const nameDiv = document.createElement('div')
+          nameDiv.style.fontWeight = '600'
+          nameDiv.style.marginBottom = '4px'
           nameDiv.textContent = `${isPool ? '池中:' : '景点:'} ${spot.name}`
           content.appendChild(nameDiv)
           if (spot.visitTimeText) {
             const t = document.createElement('div')
+            t.style.fontSize = '11px'
+            t.style.color = '#475569'
             t.textContent = `时间：${spot.visitTimeText}`
             content.appendChild(t)
           }
           if (spot.innerTransport) {
             const t = document.createElement('div')
+            t.style.fontSize = '11px'
+            t.style.color = '#475569'
             t.textContent = `交通：${spot.innerTransport}`
             content.appendChild(t)
           }
@@ -342,10 +350,35 @@ export function MapPanel({
             a.target = '_blank'
             a.rel = 'noopener noreferrer'
             a.textContent = '攻略链接'
+            a.style.color = '#0d9488'
+            a.style.textDecoration = 'underline'
             const wrap = document.createElement('div')
+            wrap.style.marginTop = '4px'
+            wrap.style.fontSize = '11px'
             wrap.appendChild(a)
             content.appendChild(wrap)
           }
+
+          // Action row: 编辑 + 定位
+          const actionRow = document.createElement('div')
+          actionRow.style.display = 'flex'
+          actionRow.style.gap = '6px'
+          actionRow.style.marginTop = '8px'
+          actionRow.style.paddingTop = '6px'
+          actionRow.style.borderTop = '1px solid #e2e8f0'
+
+          const editBtn = document.createElement('button')
+          editBtn.type = 'button'
+          editBtn.textContent = '✏️ 编辑'
+          editBtn.style.cssText =
+            'padding:3px 10px;border-radius:6px;border:1px solid #14b8a6;background:#14b8a6;color:#fff;font-size:11px;font-weight:600;cursor:pointer;'
+          editBtn.addEventListener('click', () => {
+            setSpotDetail(spot)
+          })
+          actionRow.appendChild(editBtn)
+
+          content.appendChild(actionRow)
+
           infoWindowRef.current?.setContent(content)
           infoWindowRef.current?.open(map, marker.getPosition())
         })

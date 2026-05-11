@@ -117,6 +117,8 @@ type TripActions = {
   moveCity: (cityId: string, delta: number) => void
   deleteCity: (cityId: string) => void
   addSpot: (spot: Omit<Spot, 'id'>) => boolean
+  /** Partially update an existing spot. id can't be changed. */
+  updateSpot: (spotId: string, patch: Partial<Omit<Spot, 'id'>>) => void
   removeSpot: (spotId: string) => void
   saveDay: (payload: {
     dayIndex: number
@@ -323,6 +325,15 @@ export const useTripStore = create<TripState & TripActions>()(
         spotOrder: d.spotOrder.filter((sid) => sid !== spotId),
       })),
     }))
+    get().bumpMapRedraw()
+    get().scheduleAiRefresh()
+  },
+
+  updateSpot: (spotId, patch) => {
+    set((s) => ({
+      spots: s.spots.map((x) => (x.id === spotId ? { ...x, ...patch } : x)),
+    }))
+    get().bumpMapRedraw()
     get().scheduleAiRefresh()
   },
 
