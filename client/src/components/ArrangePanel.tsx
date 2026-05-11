@@ -24,6 +24,7 @@ import { useTripStore } from '../store/tripStore'
 import type { Spot } from '../types'
 import { Btn } from './ui'
 import { SpotContextMenu, useSpotContextMenu } from './SpotContextMenu'
+import { WeatherChip } from './WeatherChip'
 
 const DAY_COLORS = [
   '#059669',
@@ -300,6 +301,7 @@ function DayCard({
             {date && (
               <span className="text-[11px] text-slate-500">{date}</span>
             )}
+            <WeatherChip city={cityName} date={date} />
             <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-500 ring-1 ring-slate-200">
               {spots.length} 个
             </span>

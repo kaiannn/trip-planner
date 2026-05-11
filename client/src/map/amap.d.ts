@@ -115,6 +115,64 @@ declare namespace AMap {
     pois?: { id?: string; name?: string; type?: string; distance?: string | number }[]
   }
 
+  interface GeolocationResult {
+    info: string
+    position: LngLat
+    accuracy?: number
+    formattedAddress?: string
+  }
+
+  class Geolocation {
+    constructor(opts?: {
+      enableHighAccuracy?: boolean
+      timeout?: number
+      showButton?: boolean
+      showMarker?: boolean
+      showCircle?: boolean
+    })
+    getCurrentPosition(
+      callback: (status: string, result: GeolocationResult) => void,
+    ): void
+  }
+
+  interface WeatherLive {
+    city: string
+    weather: string
+    temperature: string | number
+    winddirection?: string
+    windpower?: string
+    humidity?: string | number
+    reporttime?: string
+  }
+
+  interface WeatherForecastCast {
+    date: string
+    dayweather: string
+    nightweather: string
+    daytemp: string | number
+    nighttemp: string | number
+    daywind?: string
+    nightwind?: string
+  }
+
+  interface WeatherForecast {
+    city: string
+    reporttime?: string
+    forecasts: WeatherForecastCast[]
+  }
+
+  class Weather {
+    constructor()
+    getLive(
+      city: string,
+      callback: (err: Error | null, data: WeatherLive) => void,
+    ): void
+    getForecast(
+      city: string,
+      callback: (err: Error | null, data: WeatherForecast) => void,
+    ): void
+  }
+
   class Geocoder {
     constructor(opts?: { city?: string; radius?: number; extensions?: 'base' | 'all' })
     getLocation(

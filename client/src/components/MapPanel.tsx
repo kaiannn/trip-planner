@@ -588,7 +588,7 @@ export function MapPanel({
       return
     }
 
-    const src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(amapKey)}&plugin=AMap.Geocoder,AMap.Driving,AMap.Walking,AMap.Transfer,AMap.Riding,AMap.AutoComplete,AMap.PlaceSearch`
+    const src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(amapKey)}&plugin=AMap.Geocoder,AMap.Driving,AMap.Walking,AMap.Transfer,AMap.Riding,AMap.AutoComplete,AMap.PlaceSearch,AMap.Geolocation,AMap.Weather`
 
     const script = document.createElement('script')
     script.src = src
@@ -640,6 +640,8 @@ export function MapPanel({
         'AMap.Riding',
         'AMap.AutoComplete',
         'AMap.PlaceSearch',
+        'AMap.Geolocation',
+        'AMap.Weather',
       ],
       () => {},
     )
@@ -865,6 +867,49 @@ export function MapPanel({
                 重置视图
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                const map = mapRef.current
+                const AMapNs = window.AMap
+                if (!map || !AMapNs?.Geolocation) {
+                  pushLog('地理定位插件未加载,无法「我在哪」。', 'warn')
+                  return
+                }
+                const geo = new AMapNs.Geolocation({
+                  enableHighAccuracy: true,
+                  timeout: 8000,
+                  showButton: false,
+                  showMarker: false,
+                  showCircle: false,
+                })
+                geo.getCurrentPosition((status, result) => {
+                  if (status !== 'complete' || !result.position) {
+                    pushLog(`无法获取当前位置: ${result?.info ?? status}`, 'warn')
+                    return
+                  }
+                  try {
+                    map.panTo([
+                      result.position.getLng(),
+                      result.position.getLat(),
+                    ])
+                    pushLog(
+                      `已定位到当前位置${
+                        result.formattedAddress
+                          ? ` (${result.formattedAddress})`
+                          : ''
+                      }。`,
+                    )
+                  } catch {
+                    /* ignore */
+                  }
+                })
+              }}
+              className="ml-1 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 shadow-sm transition hover:border-teal-300 hover:bg-teal-50 hover:text-teal-700"
+              title="把地图中心移到我现在的位置"
+            >
+              📍 我在哪
+            </button>
           </div>
           <div className="relative flex min-h-0 flex-1 flex-col">
             {mapLoadError && (
