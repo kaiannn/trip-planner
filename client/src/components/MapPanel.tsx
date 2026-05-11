@@ -721,12 +721,16 @@ export function MapPanel({
     drawRoutes(map, mapFocusDayId)
   }, [drawRoutes, mapFocusDayId, cities, spots, dailyPlans, mapRedrawNonce])
 
-  // Pan to the focused spot whenever mapFocusSpotId changes. Pan only —
-  // zoom level stays where the user left it (UX choice B).
+  // Pan to the focused spot whenever mapFocusSpotId CHANGES. We deliberately
+  // depend only on the ID (not the full spots array) so that edits to other
+  // spots don't re-fire this and drag the camera back.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapFocusSpotId) return
-    const spot = spots.find((s) => s.id === mapFocusSpotId)
+    // Read spots from the live store to avoid adding them to deps.
+    const spot = useTripStore
+      .getState()
+      .spots.find((s) => s.id === mapFocusSpotId)
     if (!spot) return
     try {
       map.panTo([spot.location.lng, spot.location.lat])
@@ -738,19 +742,20 @@ export function MapPanel({
         /* ignore */
       }
     }
-  }, [mapFocusSpotId, spots])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapFocusSpotId])
 
-  // When a day is focused, fit-view onto only that day's spots so the
-  // user sees the whole day's geographic shape.
+  // When a day is focused, fit-view onto that day's spots — but only when
+  // the focused DAY changes, not on every daily-plan edit. Otherwise every
+  // drag-and-drop inside the focused day would re-fit the camera.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapFocusDayId) return
-    const day = dailyPlans.find((d) => d.id === mapFocusDayId)
+    const state = useTripStore.getState()
+    const day = state.dailyPlans.find((d) => d.id === mapFocusDayId)
     if (!day || !day.spotOrder.length) return
     const dayMarkers = spotMarkersRef.current.filter((_, i) => {
-      // The order of spotMarkersRef matches the spots array passed to draw.
-      // We re-derive the matching spot id by index against the current spots[].
-      const spotId = spots[i]?.id
+      const spotId = state.spots[i]?.id
       return spotId ? day.spotOrder.includes(spotId) : false
     })
     if (dayMarkers.length) {
@@ -760,7 +765,8 @@ export function MapPanel({
         /* ignore */
       }
     }
-  }, [mapFocusDayId, dailyPlans, spots])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapFocusDayId])
 
   const geocodeCity = useCallback(
     (city: City) => {
