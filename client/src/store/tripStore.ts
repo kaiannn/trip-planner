@@ -463,6 +463,16 @@ export const useTripStore = create<TripState & TripActions>()(
             set({ aiStatus: `AI 正在生成…（${bytes} 字）` })
           }
         },
+        onRetry: ({ attempt, delayMs, error }) => {
+          const msg = error instanceof Error ? error.message : String(error)
+          set({
+            aiStatus: `第 ${attempt} 次失败:${msg.slice(0, 60)}…${(delayMs / 1000).toFixed(1)}s 后重试`,
+          })
+          get().pushLog(
+            `AI 推荐第 ${attempt} 次失败:${msg}。${(delayMs / 1000).toFixed(1)} 秒后自动重试。`,
+            'warn',
+          )
+        },
       })
       set({
         aiSections: finalSections,
@@ -476,9 +486,9 @@ export const useTripStore = create<TripState & TripActions>()(
         return
       }
       const msg = e instanceof Error ? e.message : String(e)
-      set({ aiStatus: `请求失败：${msg}` })
+      set({ aiStatus: `请求失败:${msg}` })
       get().pushLog(
-        `AI 推荐请求失败：${msg}。请检查后端 /api/ai/recommend 是否已启动以及 API Key 是否填写。`,
+        `AI 推荐请求失败:${msg}。可点击「重试」再试一次。`,
         'error',
       )
     }

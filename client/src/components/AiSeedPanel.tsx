@@ -15,6 +15,12 @@ export function AiSeedPanel() {
 
   const loading =
     aiSeedStatus.includes('正在') || aiSeedStatus.includes('定位坐标')
+  // Surface a manual retry CTA when the last attempt ended in error.
+  const failed =
+    !loading &&
+    (aiSeedStatus.startsWith('生成失败') ||
+      aiSeedStatus.includes('请求失败') ||
+      aiSeedStatus.startsWith('第 ') /* "第 N 次失败:..." retry trace */)
 
   return (
     <section className="shrink-0 rounded-2xl border border-teal-200/70 bg-gradient-to-br from-teal-50/60 to-white p-3 shadow-sm ring-1 ring-teal-900/[0.03]">
@@ -42,17 +48,26 @@ export function AiSeedPanel() {
         disabled={loading}
       />
       <div className="mt-2 flex items-center justify-between gap-2">
-        <Btn
-          variant="primary"
-          className={loading ? 'opacity-60' : ''}
-          onClick={() => {
-            if (!loading) void seedPoolFromAi()
-          }}
-        >
-          {loading ? '生成中…' : '帮我填景点池'}
-        </Btn>
+        <div className="flex items-center gap-1.5">
+          <Btn
+            variant="primary"
+            className={loading ? 'opacity-60' : ''}
+            onClick={() => {
+              if (!loading) void seedPoolFromAi()
+            }}
+          >
+            {loading ? '生成中…' : failed ? '重试' : '帮我填景点池'}
+          </Btn>
+          {failed && (
+            <span className="text-[10px] text-red-500">⚠ 上次失败</span>
+          )}
+        </div>
         {aiSeedStatus && (
-          <span className="truncate text-[11px] text-slate-500">
+          <span
+            className={`truncate text-[11px] ${
+              failed ? 'text-red-600' : 'text-slate-500'
+            }`}
+          >
             {aiSeedStatus}
           </span>
         )}
