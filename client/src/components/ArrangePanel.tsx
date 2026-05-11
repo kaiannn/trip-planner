@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useMemo, useState } from 'react'
+import { distanceInMeters } from '../lib/geo'
 import { useTripStore } from '../store/tripStore'
 import type { Spot } from '../types'
 import { Btn } from './ui'
@@ -195,6 +196,21 @@ function DayCard({
     [dayId, spots],
   )
 
+  // Realism summary: total straight-line km between consecutive spots.
+  // Cheap & always-available; AMap.Driving cache lives in MapPanel and we
+  // don't want to duplicate it here. Good enough as a "is this day overstuffed"
+  // hint. Walking + transfers add overhead so we treat >40 km as a soft warning.
+  const dayKm = useMemo(() => {
+    let m = 0
+    for (let i = 0; i < spots.length - 1; i++) {
+      const a = spots[i].location
+      const b = spots[i + 1].location
+      m += distanceInMeters(a.lat, a.lng, b.lat, b.lng)
+    }
+    return m / 1000
+  }, [spots])
+  const overStuffed = spots.length > 5 || dayKm > 40
+
   return (
     <section
       ref={setDropRef}
@@ -207,7 +223,7 @@ function DayCard({
         style={{ background: `${color}10` }}
       >
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span
               className="h-2 w-2 rounded-full"
               style={{ background: color }}
@@ -221,6 +237,19 @@ function DayCard({
             <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-500 ring-1 ring-slate-200">
               {spots.length} 个
             </span>
+            {spots.length >= 2 && (
+              <span
+                className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 ${
+                  overStuffed
+                    ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                    : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                }`}
+                title={overStuffed ? '景点偏多或路程偏长,可以考虑拆到下一天' : ''}
+              >
+                ≈ {dayKm.toFixed(1)} km
+                {overStuffed ? ' ⚠️' : ''}
+              </span>
+            )}
           </div>
           {cityName && (
             <div className="mt-0.5 text-[11px] text-slate-500">{cityName}</div>
