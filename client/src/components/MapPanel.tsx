@@ -54,11 +54,14 @@ export function MapPanel({
   const spots = useTripStore((s) => s.spots)
   const dailyPlans = useTripStore((s) => s.dailyPlans)
   const mapFocusDayId = useTripStore((s) => s.mapFocusDayId)
+  const mapFocusSpotId = useTripStore((s) => s.mapFocusSpotId)
+  const clearMapFocus = useTripStore((s) => s.clearMapFocus)
   const mapRedrawNonce = useTripStore((s) => s.mapRedrawNonce)
   const updateCityLocation = useTripStore((s) => s.updateCityLocation)
   const setPendingMapCoords = useTripStore((s) => s.setPendingMapCoords)
   const pushLog = useTripStore((s) => s.pushLog)
-  const showPoolOnMap = useTripStore((s) => s.showPoolOnMap)
+  /** Track whether we've ever fit the view yet — gates the initial fit-view. */
+  const hasInitialFitRef = useRef(false)
 
   const drawRoutes = useCallback(
     (map: AMap.Map, focusDayId: string | null) => {
@@ -298,22 +301,25 @@ export function MapPanel({
 
       spots.forEach((spot) => {
         const isPool = !assignedSpotIds.has(spot.id)
-        if (isPool && !showPoolOnMap) return
         const dayColor = spotColorById.get(spot.id)
+        const isFocused = spot.id === mapFocusSpotId
+        const labelBg = dayColor ?? 'rgba(148,163,184,0.9)'
+        const labelWeight = dayColor ? '600' : '500'
+        // Focused spots get a persistent glow ring via box-shadow layering.
+        const labelShadow = isFocused
+          ? '0 0 0 2px #fff, 0 0 0 5px rgba(13,148,136,0.75), 0 4px 14px rgba(13,148,136,0.45)'
+          : dayColor
+            ? '0 1px 3px rgba(0,0,0,0.25)'
+            : 'none'
         const marker = new AMap.Marker({
           position: [spot.location.lng, spot.location.lat],
           title: spot.name,
           map,
-          zIndex: isPool ? 50 : 100,
-          label: dayColor
-            ? {
-                content: `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:${dayColor};color:#fff;font-size:10px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.25)">${spot.name}</span>`,
-                direction: 'top',
-              }
-            : {
-                content: `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:rgba(148,163,184,0.9);color:#fff;font-size:10px;font-weight:500;">${spot.name}</span>`,
-                direction: 'top',
-              },
+          zIndex: isFocused ? 200 : isPool ? 50 : 100,
+          label: {
+            content: `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:${labelBg};color:#fff;font-size:10px;font-weight:${labelWeight};box-shadow:${labelShadow}">${spot.name}</span>`,
+            direction: 'top',
+          },
         })
         marker.on('click', () => {
           const content = document.createElement('div')
@@ -346,16 +352,22 @@ export function MapPanel({
         spotMarkersRef.current.push(marker)
       })
 
-      const overlays: AMap.Overlay[] = [
-        ...cityMarkersRef.current,
-        ...spotMarkersRef.current,
-        ...routePolylinesRef.current,
-      ]
-      if (overlays.length) {
-        map.setFitView(overlays)
+      // Only fit-view on the very first meaningful render. After that the
+      // user is in charge of the camera; click-to-focus pans explicitly via
+      // panTo, and 重置视图 calls setFitView on demand.
+      if (!hasInitialFitRef.current) {
+        const overlays: AMap.Overlay[] = [
+          ...cityMarkersRef.current,
+          ...spotMarkersRef.current,
+          ...routePolylinesRef.current,
+        ]
+        if (overlays.length) {
+          map.setFitView(overlays)
+          hasInitialFitRef.current = true
+        }
       }
     },
-    [cities, spots, dailyPlans, showPoolOnMap],
+    [cities, spots, dailyPlans, mapFocusSpotId],
   )
 
   const reportMapError = useCallback(
@@ -476,6 +488,47 @@ export function MapPanel({
     drawRoutes(map, mapFocusDayId)
   }, [drawRoutes, mapFocusDayId, cities, spots, dailyPlans, mapRedrawNonce])
 
+  // Pan to the focused spot whenever mapFocusSpotId changes. Pan only —
+  // zoom level stays where the user left it (UX choice B).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapFocusSpotId) return
+    const spot = spots.find((s) => s.id === mapFocusSpotId)
+    if (!spot) return
+    try {
+      map.panTo([spot.location.lng, spot.location.lat])
+    } catch {
+      // panTo not supported — fall back to setCenter
+      try {
+        map.setCenter([spot.location.lng, spot.location.lat])
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [mapFocusSpotId, spots])
+
+  // When a day is focused, fit-view onto only that day's spots so the
+  // user sees the whole day's geographic shape.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapFocusDayId) return
+    const day = dailyPlans.find((d) => d.id === mapFocusDayId)
+    if (!day || !day.spotOrder.length) return
+    const dayMarkers = spotMarkersRef.current.filter((_, i) => {
+      // The order of spotMarkersRef matches the spots array passed to draw.
+      // We re-derive the matching spot id by index against the current spots[].
+      const spotId = spots[i]?.id
+      return spotId ? day.spotOrder.includes(spotId) : false
+    })
+    if (dayMarkers.length) {
+      try {
+        map.setFitView(dayMarkers)
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [mapFocusDayId, dailyPlans, spots])
+
   const geocodeCity = useCallback(
     (city: City) => {
       const map = mapRef.current
@@ -532,6 +585,47 @@ export function MapPanel({
                 <span className="font-medium text-slate-700">{item.label}</span>
               </div>
             ))}
+            {(mapFocusSpotId || mapFocusDayId) && (
+              <button
+                type="button"
+                onClick={() => {
+                  clearMapFocus()
+                  // Return to an overview fit-view across everything.
+                  const map = mapRef.current
+                  const AMapNs = window.AMap
+                  if (map && AMapNs) {
+                    const overlays: AMap.Overlay[] = [
+                      ...cityMarkersRef.current,
+                      ...spotMarkersRef.current,
+                      ...routePolylinesRef.current,
+                    ]
+                    if (overlays.length) {
+                      try {
+                        map.setFitView(overlays)
+                      } catch {
+                        /* ignore */
+                      }
+                    }
+                  }
+                }}
+                className="ml-auto inline-flex items-center gap-1 rounded-full border border-teal-200 bg-white px-2 py-0.5 text-[11px] font-medium text-teal-700 shadow-sm transition hover:bg-teal-50"
+                title="清除焦点,缩回总览"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="h-3 w-3"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M4.5 2A2.5 2.5 0 0 0 2 4.5v3a.75.75 0 0 0 1.5 0v-3a1 1 0 0 1 1-1h3a.75.75 0 0 0 0-1.5h-3Zm8 0a.75.75 0 0 0 0 1.5h3a1 1 0 0 1 1 1v3a.75.75 0 0 0 1.5 0v-3A2.5 2.5 0 0 0 15.5 2h-3Zm-8.75 10.25a.75.75 0 0 1 .75.75v3a1 1 0 0 0 1 1h3a.75.75 0 0 1 0 1.5h-3A2.5 2.5 0 0 1 2 15.5v-3a.75.75 0 0 1 .75-.75Zm13.5 0a.75.75 0 0 1 .75.75v3a2.5 2.5 0 0 1-2.5 2.5h-3a.75.75 0 0 1 0-1.5h3a1 1 0 0 0 1-1v-3a.75.75 0 0 1 .75-.75Z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                重置视图
+              </button>
+            )}
           </div>
           <div className="relative flex min-h-0 flex-1 flex-col">
             {mapLoadError && (

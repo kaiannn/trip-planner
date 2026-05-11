@@ -51,6 +51,8 @@ interface TripState {
   amapCityName: string
   pendingMapCoords: { lat: number; lng: number } | null
   mapFocusDayId: string | null
+  /** A specific spot the map should center on. Cleared when user clicks 重置视图. */
+  mapFocusSpotId: string | null
   tripQuizPath: string[]
   tripQuizTags: string[]
   quizNodeId: string
@@ -62,8 +64,6 @@ interface TripState {
   aiSeedInput: string
   /** Status line for the seed-pool flow ("idle" | "seeding..." | error | summary) */
   aiSeedStatus: string
-  /** Whether to show unassigned (pool) spots on the map as grey pins */
-  showPoolOnMap: boolean
   /** Two-step product flow: 'collect' = fill pool, 'arrange' = drag into days */
   appMode: 'collect' | 'arrange'
 }
@@ -109,6 +109,9 @@ type TripActions = {
   setAmapCityName: (name: string) => void
   setPendingMapCoords: (c: { lat: number; lng: number } | null) => void
   setMapFocusDayId: (id: string | null) => void
+  setMapFocusSpotId: (id: string | null) => void
+  /** Clear all focus (spot + day). Used by 重置视图. */
+  clearMapFocus: () => void
   addCity: (name: string, lat?: number, lng?: number) => City
   updateCityLocation: (cityId: string, lat: number, lng: number) => void
   moveCity: (cityId: string, delta: number) => void
@@ -145,7 +148,6 @@ type TripActions = {
   extendDaySpotsByAI: (dayId: string) => Promise<void>
   runReasonablenessChecks: () => void
   setAiSeedInput: (v: string) => void
-  setShowPoolOnMap: (v: boolean) => void
   setAppMode: (v: 'collect' | 'arrange') => void
   /** Create empty days for the current trip date range, up to 14. Idempotent. */
   ensureDaysForDateRange: () => number
@@ -189,6 +191,7 @@ export const useTripStore = create<TripState & TripActions>()(
   amapCityName: '',
   pendingMapCoords: null,
   mapFocusDayId: null,
+  mapFocusSpotId: null,
   tripQuizPath: [],
   tripQuizTags: [],
   quizNodeId: 'q_length',
@@ -198,7 +201,6 @@ export const useTripStore = create<TripState & TripActions>()(
   autoSeedPending: null,
   aiSeedInput: '',
   aiSeedStatus: '',
-  showPoolOnMap: true,
   appMode: 'collect',
 
   bumpMapRedraw: () => set((s) => ({ mapRedrawNonce: s.mapRedrawNonce + 1 })),
@@ -216,6 +218,7 @@ export const useTripStore = create<TripState & TripActions>()(
       aiCityId: DEMO_CITIES[0]?.id ?? '',
       autoSeedPending: null,
       mapFocusDayId: null,
+      mapFocusSpotId: null,
     })
     get().pushLog('已加载示例数据：杭州 3 天，含 8 个景点（3 个已分配到 Day 1）。')
     get().bumpMapRedraw()
@@ -237,7 +240,9 @@ export const useTripStore = create<TripState & TripActions>()(
   setAmapNatural: (v) => set({ amapNatural: v }),
   setAmapCityName: (name) => set({ amapCityName: name }),
   setPendingMapCoords: (c) => set({ pendingMapCoords: c }),
-  setMapFocusDayId: (id) => set({ mapFocusDayId: id }),
+  setMapFocusDayId: (id) => set({ mapFocusDayId: id, mapFocusSpotId: null }),
+  setMapFocusSpotId: (id) => set({ mapFocusSpotId: id, mapFocusDayId: null }),
+  clearMapFocus: () => set({ mapFocusDayId: null, mapFocusSpotId: null }),
 
   addCity: (name, lat, lng) => {
     const city: City = {
@@ -830,7 +835,6 @@ export const useTripStore = create<TripState & TripActions>()(
     }),
 
   setAiSeedInput: (v) => set({ aiSeedInput: v }),
-  setShowPoolOnMap: (v) => set({ showPoolOnMap: v }),
   setAppMode: (v) => set({ appMode: v }),
 
   ensureDaysForDateRange: () => {

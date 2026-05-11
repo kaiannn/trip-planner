@@ -4,9 +4,9 @@ import { Btn } from './ui'
 
 /**
  * Persistent Pool panel at the bottom of the right rail. Shows
- * unassigned spots and a summary. Clicking a spot opens the spot
- * detail modal. The dedicated "add spot" form stays in
- * SpotPoolModal for now — this panel is the read + dispatch view.
+ * unassigned spots and a summary. Clicking a spot:
+ *   - focuses the map on that spot (panTo + persistent glow)
+ *   - opens the spot detail modal
  */
 export function SpotPoolPanel() {
   const spots = useTripStore((s) => s.spots)
@@ -14,8 +14,8 @@ export function SpotPoolPanel() {
   const cities = useTripStore((s) => s.cities)
   const setSpotDetail = useTripStore((s) => s.setSpotDetail)
   const setSpotPoolOpen = useTripStore((s) => s.setSpotPoolOpen)
-  const showPoolOnMap = useTripStore((s) => s.showPoolOnMap)
-  const setShowPoolOnMap = useTripStore((s) => s.setShowPoolOnMap)
+  const mapFocusSpotId = useTripStore((s) => s.mapFocusSpotId)
+  const setMapFocusSpotId = useTripStore((s) => s.setMapFocusSpotId)
 
   const assignedIds = useMemo(() => {
     const set = new Set<string>()
@@ -42,27 +42,16 @@ export function SpotPoolPanel() {
             </span>
           </div>
           <div className="mt-0.5 text-[11px] text-slate-500">
-            拖进上方天数安排（Session 4 开启拖拽）
+            点击任一景点定位到地图
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <label className="flex cursor-pointer items-center gap-1 text-[11px] text-slate-600">
-            <input
-              type="checkbox"
-              className="h-3.5 w-3.5 rounded border-slate-300"
-              checked={showPoolOnMap}
-              onChange={(e) => setShowPoolOnMap(e.target.checked)}
-            />
-            地图显示
-          </label>
-          <Btn
-            variant="ghost"
-            className="!py-1 !text-[11px]"
-            onClick={() => setSpotPoolOpen(true)}
-          >
-            添加 / 搜索
-          </Btn>
-        </div>
+        <Btn
+          variant="ghost"
+          className="!py-1 !text-[11px]"
+          onClick={() => setSpotPoolOpen(true)}
+        >
+          添加 / 搜索
+        </Btn>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {unassigned.length === 0 ? (
@@ -73,22 +62,32 @@ export function SpotPoolPanel() {
           </p>
         ) : (
           <ul className="space-y-1">
-            {unassigned.map((s) => (
-              <li key={s.id}>
-                <button
-                  type="button"
-                  onClick={() => setSpotDetail(s)}
-                  className="group flex w-full items-center justify-between gap-2 rounded-lg border border-slate-100 bg-white px-2.5 py-1.5 text-left shadow-sm transition hover:border-teal-200 hover:bg-teal-50/30"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800 group-hover:text-teal-900">
-                    {s.name}
-                  </span>
-                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
-                    {cityName(s.cityId)}
-                  </span>
-                </button>
-              </li>
-            ))}
+            {unassigned.map((s) => {
+              const focused = mapFocusSpotId === s.id
+              return (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapFocusSpotId(s.id)
+                    }}
+                    onDoubleClick={() => setSpotDetail(s)}
+                    className={`group flex w-full items-center justify-between gap-2 rounded-lg border bg-white px-2.5 py-1.5 text-left shadow-sm transition ${
+                      focused
+                        ? 'border-teal-400 ring-2 ring-teal-200'
+                        : 'border-slate-100 hover:border-teal-200 hover:bg-teal-50/30'
+                    }`}
+                  >
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800 group-hover:text-teal-900">
+                      {s.name}
+                    </span>
+                    <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                      {cityName(s.cityId)}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

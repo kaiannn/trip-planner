@@ -4,6 +4,10 @@ declare namespace AMap {
     add(overlay: Overlay | Overlay[]): void
     on(event: string, handler: (e: MapEvent) => void): void
     setFitView(overlays?: Overlay[]): void
+    setCenter(position: [number, number] | LngLat, immediately?: boolean): void
+    panTo(position: [number, number] | LngLat): void
+    getZoom(): number
+    setZoom(zoom: number): void
     resize(): void
     destroy(): void
   }

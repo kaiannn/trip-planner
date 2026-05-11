@@ -92,17 +92,24 @@ function decodeDropId(id: string):
 
 function PoolChip({ spot }: { spot: Spot }) {
   const id = encodePoolDragId(spot.id)
+  const setMapFocusSpotId = useTripStore((s) => s.setMapFocusSpotId)
   const setSpotDetail = useTripStore((s) => s.setSpotDetail)
+  const focused = useTripStore((s) => s.mapFocusSpotId === spot.id)
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id })
   return (
     <button
       ref={setNodeRef}
       type="button"
-      onClick={() => setSpotDetail(spot)}
+      onClick={() => setMapFocusSpotId(spot.id)}
+      onDoubleClick={() => setSpotDetail(spot)}
       {...listeners}
       {...attributes}
-      className={`cursor-grab touch-none rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm transition active:cursor-grabbing ${
-        isDragging ? 'opacity-30' : 'hover:border-teal-300 hover:bg-teal-50/50'
+      className={`cursor-grab touch-none rounded-full border bg-white px-2.5 py-1 text-[11px] font-medium shadow-sm transition active:cursor-grabbing ${
+        isDragging
+          ? 'opacity-30'
+          : focused
+            ? 'border-teal-400 text-teal-800 ring-2 ring-teal-200'
+            : 'border-slate-200 text-slate-700 hover:border-teal-300 hover:bg-teal-50/50'
       }`}
     >
       {spot.name}
@@ -116,12 +123,16 @@ function DayRow({
   index,
   color,
   onRemove,
+  focused,
+  onFocus,
 }: {
   spot: Spot
   dayId: string
   index: number
   color: string
   onRemove: () => void
+  focused: boolean
+  onFocus: () => void
 }) {
   const id = encodeDayDragId(dayId, spot.id)
   const setSpotDetail = useTripStore((s) => s.setSpotDetail)
@@ -135,9 +146,9 @@ function DayRow({
     <li
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 ${
+      className={`flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 transition ${
         isDragging ? 'opacity-30' : ''
-      }`}
+      } ${focused ? 'bg-teal-50/60 ring-1 ring-inset ring-teal-300' : ''}`}
     >
       <button
         type="button"
@@ -151,7 +162,8 @@ function DayRow({
       </button>
       <button
         type="button"
-        onClick={() => setSpotDetail(spot)}
+        onClick={onFocus}
+        onDoubleClick={() => setSpotDetail(spot)}
         className="flex-1 truncate text-left font-medium hover:text-teal-700"
       >
         {spot.name}
@@ -185,6 +197,10 @@ function DayCard({
 }) {
   const setDayPlanOpen = useTripStore((s) => s.setDayPlanOpen)
   const removeSpotFromDay = useTripStore((s) => s.removeSpotFromDay)
+  const setMapFocusDayId = useTripStore((s) => s.setMapFocusDayId)
+  const setMapFocusSpotId = useTripStore((s) => s.setMapFocusSpotId)
+  const mapFocusDayId = useTripStore((s) => s.mapFocusDayId)
+  const mapFocusSpotId = useTripStore((s) => s.mapFocusSpotId)
 
   // Whole-card drop zone (so dropping anywhere on the card adds to the day).
   const { setNodeRef: setDropRef, isOver } = useDroppable({
@@ -219,8 +235,12 @@ function DayCard({
       }`}
     >
       <header
-        className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2"
+        className={`flex cursor-pointer items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 transition ${
+          mapFocusDayId === dayId ? 'ring-2 ring-inset ring-teal-300' : ''
+        }`}
         style={{ background: `${color}10` }}
+        onClick={() => setMapFocusDayId(dayId)}
+        title="点击定位地图到这一天"
       >
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -258,7 +278,10 @@ function DayCard({
         <Btn
           variant="ghost"
           className="!py-1 !text-[11px]"
-          onClick={() => setDayPlanOpen(true)}
+          onClick={(e) => {
+            e.stopPropagation()
+            setDayPlanOpen(true)
+          }}
         >
           编辑
         </Btn>
@@ -284,6 +307,8 @@ function DayCard({
                 index={i}
                 color={color}
                 onRemove={() => removeSpotFromDay(spot.id, dayId)}
+                focused={mapFocusSpotId === spot.id}
+                onFocus={() => setMapFocusSpotId(spot.id)}
               />
             ))}
           </ol>
