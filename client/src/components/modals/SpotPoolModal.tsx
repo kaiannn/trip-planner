@@ -19,6 +19,10 @@ export function SpotPoolModal() {
   const setAmapNatural = useTripStore((s) => s.setAmapNatural)
   const pendingMapCoords = useTripStore((s) => s.pendingMapCoords)
   const setPendingMapCoords = useTripStore((s) => s.setPendingMapCoords)
+  const pendingMapSuggestedName = useTripStore((s) => s.pendingMapSuggestedName)
+  const pendingMapSuggestedAddress = useTripStore(
+    (s) => s.pendingMapSuggestedAddress,
+  )
   const addSpot = useTripStore((s) => s.addSpot)
   const setSpotDetail = useTripStore((s) => s.setSpotDetail)
   const fetchAmapPoi = useTripStore((s) => s.fetchAmapPoi)
@@ -52,6 +56,14 @@ export function SpotPoolModal() {
     setAppliedCoordsKey(coordsObj)
     setSpotLat(coordsObj.lat.toFixed(6))
     setSpotLng(coordsObj.lng.toFixed(6))
+    // If reverse geocoding produced a name suggestion and the name field
+    // is still empty, use it as a helpful seed (user can overwrite).
+    if (pendingMapSuggestedName && !spotName.trim()) {
+      setSpotName(pendingMapSuggestedName)
+    }
+    if (pendingMapSuggestedAddress && !description.trim()) {
+      setDescription(pendingMapSuggestedAddress)
+    }
   }
 
   if (sortedCities.length && !spotCityId) {

@@ -99,8 +99,22 @@ declare namespace AMap {
     offset?: Pixel
   }
 
+  interface ReverseGeocodeRegeocode {
+    formatted_address?: string
+    addressComponent?: {
+      province?: string
+      city?: string
+      district?: string
+      township?: string
+      neighborhood?: { name?: string }
+      building?: { name?: string }
+      streetNumber?: { street?: string; number?: string }
+    }
+    pois?: { id?: string; name?: string; type?: string; distance?: string | number }[]
+  }
+
   class Geocoder {
-    constructor(opts?: { city?: string })
+    constructor(opts?: { city?: string; radius?: number; extensions?: 'base' | 'all' })
     getLocation(
       address: string,
       callback: (
@@ -109,6 +123,13 @@ declare namespace AMap {
           info: string
           geocodes: { location: { lng: number; lat: number } }[]
         },
+      ) => void,
+    ): void
+    getAddress(
+      location: [number, number] | LngLat,
+      callback: (
+        status: string,
+        result: { info: string; regeocode?: ReverseGeocodeRegeocode },
       ) => void,
     ): void
   }

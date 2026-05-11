@@ -51,6 +51,10 @@ interface TripState {
   amapNatural: string
   amapCityName: string
   pendingMapCoords: { lat: number; lng: number } | null
+  /** Best-effort suggested name from reverse geocoding the right-click. */
+  pendingMapSuggestedName: string | null
+  /** Best-effort address from reverse geocoding. */
+  pendingMapSuggestedAddress: string | null
   mapFocusDayId: string | null
   /** A specific spot the map should center on. Cleared when user clicks 重置视图. */
   mapFocusSpotId: string | null
@@ -109,6 +113,7 @@ type TripActions = {
   setAmapNatural: (v: string) => void
   setAmapCityName: (name: string) => void
   setPendingMapCoords: (c: { lat: number; lng: number } | null) => void
+  setPendingMapSuggestion: (name: string | null, address: string | null) => void
   setMapFocusDayId: (id: string | null) => void
   setMapFocusSpotId: (id: string | null) => void
   /** Clear all focus (spot + day). Used by 重置视图. */
@@ -193,6 +198,8 @@ export const useTripStore = create<TripState & TripActions>()(
   amapNatural: '',
   amapCityName: '',
   pendingMapCoords: null,
+  pendingMapSuggestedName: null,
+  pendingMapSuggestedAddress: null,
   mapFocusDayId: null,
   mapFocusSpotId: null,
   tripQuizPath: [],
@@ -242,7 +249,16 @@ export const useTripStore = create<TripState & TripActions>()(
   setAmapKeywords: (v) => set({ amapKeywords: v }),
   setAmapNatural: (v) => set({ amapNatural: v }),
   setAmapCityName: (name) => set({ amapCityName: name }),
-  setPendingMapCoords: (c) => set({ pendingMapCoords: c }),
+  setPendingMapCoords: (c) =>
+    set({
+      pendingMapCoords: c,
+      // Clear suggestions when caller sets coords directly (e.g. from the
+      // context menu "use these coords" flow).
+      pendingMapSuggestedName: null,
+      pendingMapSuggestedAddress: null,
+    }),
+  setPendingMapSuggestion: (name: string | null, address: string | null) =>
+    set({ pendingMapSuggestedName: name, pendingMapSuggestedAddress: address }),
   setMapFocusDayId: (id) => set({ mapFocusDayId: id, mapFocusSpotId: null }),
   setMapFocusSpotId: (id) => set({ mapFocusSpotId: id, mapFocusDayId: null }),
   clearMapFocus: () => set({ mapFocusDayId: null, mapFocusSpotId: null }),
@@ -517,26 +533,70 @@ export const useTripStore = create<TripState & TripActions>()(
     const cityId = s.aiCityId || s.cities[0]?.id || ''
     const city = s.cities.find((c) => c.id === cityId)
     if (!city) {
-      get().pushLog('无法应用景点：当前没有可用城市。', 'error')
+      get().pushLog('无法应用景点:当前没有可用城市。', 'error')
       return
     }
-    const lat = typeof item.lat === 'number' ? item.lat : city.location?.lat
-    const lng = typeof item.lng === 'number' ? item.lng : city.location?.lng
-    if (typeof lat !== 'number' || typeof lng !== 'number') {
-      get().pushLog('AI 推荐景点未提供坐标，且城市也没有坐标，无法放到地图上。', 'warn')
+    const name = item.title || 'AI 推荐景点'
+    // If the AI provided real coords, use them directly.
+    if (typeof item.lat === 'number' && typeof item.lng === 'number') {
+      const spot: Spot = {
+        id: uid('spot_ai'),
+        cityId: city.id,
+        name,
+        location: { lat: item.lat, lng: item.lng },
+        guideUrl: item.guideUrl,
+        visitTimeText: item.summary,
+        innerTransport: item.innerTransport,
+      }
+      set((st) => ({ spots: [...st.spots, spot] }))
+      get().pushLog(`已将 AI 推荐景点加入:${name}`)
+      get().scheduleAiRefresh()
+      return
     }
-    const spot: Spot = {
-      id: uid('spot_ai'),
-      cityId: city.id,
-      name: item.title || 'AI 推荐景点',
-      location: { lat: lat ?? 0, lng: lng ?? 0 },
-      guideUrl: item.guideUrl,
-      visitTimeText: item.summary,
-      innerTransport: item.innerTransport,
+    // Otherwise try to geocode by name inside the city. Silently skip if
+    // we can't resolve a real location — dropping the pin at city hall
+    // is misleading. The user can always add it manually if they want.
+    const AMapNs = typeof window !== 'undefined' ? window.AMap : undefined
+    if (!AMapNs?.Geocoder) {
+      get().pushLog(
+        `无法添加「${name}」:AI 没给坐标,且地图还未加载,跳过。`,
+        'warn',
+      )
+      return
     }
-    set((st) => ({ spots: [...st.spots, spot] }))
-    get().pushLog(`已将 AI 推荐景点加入：${item.title || 'AI 推荐景点'}`)
-    get().scheduleAiRefresh()
+    try {
+      const g = new AMapNs.Geocoder({ city: city.name })
+      g.getLocation(`${city.name}${name}`, (status, result) => {
+        if (
+          status !== 'complete' ||
+          result.info !== 'OK' ||
+          !result.geocodes?.length
+        ) {
+          get().pushLog(
+            `无法添加「${name}」:地理编码失败,已跳过(不会落在市中心)。`,
+            'warn',
+          )
+          return
+        }
+        const loc = result.geocodes[0].location
+        const spot: Spot = {
+          id: uid('spot_ai'),
+          cityId: city.id,
+          name,
+          location: { lat: loc.lat, lng: loc.lng },
+          guideUrl: item.guideUrl,
+          visitTimeText: item.summary,
+          innerTransport: item.innerTransport,
+        }
+        set((st) => ({ spots: [...st.spots, spot] }))
+        get().pushLog(
+          `已将 AI 推荐景点加入:${name} (通过地理编码定位)`,
+        )
+        get().scheduleAiRefresh()
+      })
+    } catch {
+      get().pushLog(`无法添加「${name}」:地理编码抛出异常,跳过。`, 'warn')
+    }
   },
 
   applyAiLodgingItem: (item) => {

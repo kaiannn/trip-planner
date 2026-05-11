@@ -484,8 +484,44 @@ export function MapPanel({
       const lnglat = e.lnglat
       const lat = lnglat.getLat()
       const lng = lnglat.getLng()
+      // Record coords immediately so forms can fill them in without waiting.
       setPendingMapCoords({ lat, lng })
-      pushLog(`已记录经纬度（可填入表单）：${lat.toFixed(4)}, ${lng.toFixed(4)}`)
+      pushLog(`已记录经纬度(可填入表单):${lat.toFixed(4)}, ${lng.toFixed(4)}`)
+
+      // Then best-effort reverse geocode to also suggest a name + address.
+      // Any failure is silent — the coords alone are still useful.
+      const AMapNs = window.AMap
+      if (AMapNs?.Geocoder) {
+        try {
+          const g = new AMapNs.Geocoder({ radius: 200, extensions: 'all' })
+          g.getAddress([lng, lat], (status, result) => {
+            if (
+              status !== 'complete' ||
+              result.info !== 'OK' ||
+              !result.regeocode
+            ) {
+              return
+            }
+            const re = result.regeocode
+            const poiName = re.pois?.[0]?.name
+            const buildingName = re.addressComponent?.building?.name
+            const neighborhoodName = re.addressComponent?.neighborhood?.name
+            const suggestedName =
+              poiName || buildingName || neighborhoodName || null
+            const address = re.formatted_address || null
+            if (suggestedName || address) {
+              useTripStore
+                .getState()
+                .setPendingMapSuggestion(suggestedName, address)
+              pushLog(
+                `反向地理:${suggestedName ?? '(无名)'}${address ? ` · ${address}` : ''}`,
+              )
+            }
+          })
+        } catch {
+          // ignore — graceful degrade to coords-only
+        }
+      }
     })
 
     const doResize = () => {
