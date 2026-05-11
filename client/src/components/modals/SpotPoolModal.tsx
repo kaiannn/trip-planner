@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTripStore } from '../../store/tripStore'
-import { Btn, Field, SpotImg } from '../ui'
+import { Btn, Field } from '../ui'
+import { SpotImage } from '../SpotImage'
 import { PlaceAutoComplete } from '../PlaceAutoComplete'
 
 export function SpotPoolModal() {
@@ -283,7 +284,11 @@ export function SpotPoolModal() {
                 onClick={() => setSpotDetail(spot)}
                 className="overflow-hidden rounded-xl border border-slate-100 bg-slate-50 text-left shadow-sm transition hover:shadow-md"
               >
-                <SpotImg src={spot.imageUrl} alt={spot.name} />
+                <SpotImage
+                  blobId={spot.imageBlobId}
+                  imageUrl={spot.imageUrl}
+                  alt={spot.name}
+                />
                 <div className="p-2 text-center text-xs font-medium text-slate-800">{spot.name}</div>
               </button>
             ))}

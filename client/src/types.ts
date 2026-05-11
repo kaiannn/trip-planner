@@ -14,6 +14,12 @@ export interface Spot {
   visitTimeText?: string
   innerTransport?: string
   imageUrl?: string
+  /**
+   * Client-local ID for an image Blob stored in IndexedDB
+   * (see lib/imageStorage.ts). When both imageUrl and imageBlobId are
+   * present, the blob takes precedence. Typically equals the spot id.
+   */
+  imageBlobId?: string
   description?: string
   videoUrl?: string
   xiaohongshuUrls?: string[]

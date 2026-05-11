@@ -5,6 +5,7 @@ import { buildTripProfileFromTags } from '../lib/tripProfile'
 import { isDuplicateSpot } from '../lib/geo'
 import { fetchAiRecommend, streamAiRecommend, fetchAiPoiQuery, fetchAiSeedPool, abortPendingAiRequest } from '../api/ai'
 import { fetchAmapPoiList, type AmapPoi } from '../api/amap'
+import { deleteImageBlob } from '../lib/imageStorage'
 import {
   DEMO_CITIES,
   DEMO_DAILY_PLANS,
@@ -318,6 +319,13 @@ export const useTripStore = create<TripState & TripActions>()(
   },
 
   removeSpot: (spotId) => {
+    // Best-effort: tear down any locally stored image blob too.
+    const target = get().spots.find((x) => x.id === spotId)
+    if (target?.imageBlobId) {
+      void deleteImageBlob(target.imageBlobId).catch(() => {
+        /* swallow — orphan blob is harmless */
+      })
+    }
     set((s) => ({
       spots: s.spots.filter((x) => x.id !== spotId),
       dailyPlans: s.dailyPlans.map((d) => ({

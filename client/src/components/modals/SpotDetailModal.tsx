@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTripStore } from '../../store/tripStore'
-import { Btn, Field, SpotImg, inputClass } from '../ui'
+import { Btn, Field, inputClass } from '../ui'
+import { SpotImage } from '../SpotImage'
+import { resizeImage } from '../../lib/imageResize'
+import { saveImageBlob, deleteImageBlob, getImageBlob } from '../../lib/imageStorage'
 
 /**
  * Spot detail + full editor.
@@ -189,7 +192,16 @@ export function SpotDetailModal() {
             />
           </Field>
 
-          <Field label="图片链接">
+          <div className="sm:col-span-2">
+            <ImagePicker
+              spotId={spot.id}
+              blobId={draft.imageBlobId}
+              onSetBlob={(id) => setField('imageBlobId', id)}
+              pushLog={pushLog}
+            />
+          </div>
+
+          <Field label="图片链接(或直接粘贴 / 拖拽上方)">
             <input
               className={inputClass}
               placeholder="https://..."
@@ -274,15 +286,16 @@ export function SpotDetailModal() {
         </div>
 
         {/* Previews */}
-        {(draft.imageUrl || videoPreview) && (
+        {(draft.imageBlobId || draft.imageUrl || videoPreview) && (
           <div className="space-y-3 border-t border-slate-100 bg-slate-50/40 p-4">
-            {draft.imageUrl && (
+            {(draft.imageBlobId || draft.imageUrl) && (
               <section>
                 <h4 className="mb-1 text-xs font-semibold uppercase text-slate-400">
                   图片预览
                 </h4>
-                <SpotImg
-                  src={draft.imageUrl}
+                <SpotImage
+                  blobId={draft.imageBlobId}
+                  imageUrl={draft.imageUrl}
                   alt={draft.name}
                   aspectClassName="max-h-48"
                   className="rounded-xl"
@@ -300,6 +313,184 @@ export function SpotDetailModal() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Click / drag / paste image picker. Resizes via canvas before saving
+ * to IndexedDB. Stores under `spotId` so each spot has at most one
+ * blob; the spot record only carries the blobId reference.
+ */
+function ImagePicker({
+  spotId,
+  blobId,
+  onSetBlob,
+  pushLog,
+}: {
+  spotId: string
+  blobId?: string
+  onSetBlob: (id: string | undefined) => void
+  pushLog: (msg: string, level?: 'info' | 'warn' | 'error') => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null)
+  const [stats, setStats] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Reload thumbnail whenever the bound blobId changes.
+  useEffect(() => {
+    setThumbUrl(null)
+    if (!blobId) return
+    let revoke: string | null = null
+    let cancelled = false
+    getImageBlob(blobId).then((blob) => {
+      if (cancelled || !blob) return
+      const u = URL.createObjectURL(blob)
+      revoke = u
+      setThumbUrl(u)
+    })
+    return () => {
+      cancelled = true
+      if (revoke) URL.revokeObjectURL(revoke)
+    }
+  }, [blobId])
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      pushLog('请选择图片文件。', 'warn')
+      return
+    }
+    setBusy(true)
+    try {
+      const originalSize = file.size
+      const resized = await resizeImage(file)
+      await saveImageBlob(spotId, resized)
+      onSetBlob(spotId)
+      const ratio =
+        originalSize > 0 ? Math.round((resized.size / originalSize) * 100) : 0
+      const fmtKB = (n: number) => `${(n / 1024).toFixed(0)} KB`
+      const note = `${fmtKB(originalSize)} → ${fmtKB(resized.size)}${
+        ratio > 0 ? ` (${ratio}%)` : ''
+      }`
+      setStats(note)
+      pushLog(`图片已保存到本地:${note}`)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      pushLog(`图片处理失败:${msg}`, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) void handleFile(file)
+  }
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const item = Array.from(e.clipboardData.items).find((it) =>
+      it.type.startsWith('image/'),
+    )
+    if (!item) return
+    const file = item.getAsFile()
+    if (file) {
+      e.preventDefault()
+      void handleFile(file)
+    }
+  }
+
+  const handleClear = async () => {
+    if (!blobId) {
+      onSetBlob(undefined)
+      return
+    }
+    try {
+      await deleteImageBlob(blobId)
+    } catch {
+      /* ignore */
+    }
+    onSetBlob(undefined)
+    setThumbUrl(null)
+    setStats(null)
+  }
+
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault()
+        setDragOver(true)
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+      onPaste={handlePaste}
+      tabIndex={0}
+      className={`relative flex items-center gap-3 rounded-xl border-2 border-dashed p-3 transition focus:outline-none ${
+        dragOver
+          ? 'border-teal-400 bg-teal-50/60'
+          : blobId
+            ? 'border-teal-200 bg-teal-50/30'
+            : 'border-slate-300 bg-slate-50/60 hover:border-slate-400'
+      }`}
+    >
+      {thumbUrl ? (
+        <img
+          src={thumbUrl}
+          alt="预览"
+          className="h-16 w-24 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+        />
+      ) : (
+        <div className="flex h-16 w-24 shrink-0 items-center justify-center rounded-lg bg-white text-2xl text-slate-300 ring-1 ring-slate-200">
+          📷
+        </div>
+      )}
+
+      <div className="min-w-0 flex-1 text-[12px] text-slate-600">
+        <div className="font-medium text-slate-800">
+          {blobId ? '已保存到本地' : '上传景点图片'}
+        </div>
+        <div className="mt-0.5 truncate text-[11px] text-slate-500">
+          {busy
+            ? '处理中…'
+            : blobId
+              ? stats || '存在 IndexedDB,自动压缩到 1280px'
+              : '点击选择 / 拖拽 / Cmd+V 粘贴'}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1.5">
+        <Btn
+          variant="secondary"
+          className="!py-1 !text-[11px]"
+          onClick={() => inputRef.current?.click()}
+        >
+          {blobId ? '换一张' : '选择图片'}
+        </Btn>
+        {blobId && (
+          <Btn
+            variant="ghost"
+            className="!py-1 !text-[11px] text-red-600"
+            onClick={handleClear}
+          >
+            清除
+          </Btn>
+        )}
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) void handleFile(file)
+          e.target.value = ''
+        }}
+      />
     </div>
   )
 }
