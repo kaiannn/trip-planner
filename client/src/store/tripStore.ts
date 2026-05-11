@@ -125,6 +125,12 @@ type TripActions = {
   }) => void
   deleteDay: (dayId: string) => void
   setDaySpotOrder: (dayId: string, spotOrder: string[]) => void
+  /** Put a pool spot onto the end of a day. Idempotent. */
+  assignSpotToDay: (spotId: string, dayId: string) => void
+  /** Remove a spot from a day's spotOrder, back into the pool. */
+  removeSpotFromDay: (spotId: string, dayId: string) => void
+  /** Move a spot from one day to another (onto the end of the target day). */
+  moveSpotBetweenDays: (spotId: string, fromDayId: string, toDayId: string) => void
   requestAiRecommendations: (focus?: AiFocus) => Promise<void>
   /** 地图重绘 + 合理性检查 + 全量 AI（与单次点「推荐」共用同一套上下文） */
   syncTripIntelligence: () => Promise<void>
@@ -355,6 +361,54 @@ export const useTripStore = create<TripState & TripActions>()(
         d.id === dayId ? { ...d, spotOrder } : d,
       ),
     }))
+    get().scheduleAiRefresh()
+  },
+
+  assignSpotToDay: (spotId, dayId) => {
+    set((s) => ({
+      dailyPlans: s.dailyPlans.map((d) => {
+        if (d.id !== dayId) {
+          // Also remove from any other day so a spot can't exist in two days.
+          return d.spotOrder.includes(spotId)
+            ? { ...d, spotOrder: d.spotOrder.filter((id) => id !== spotId) }
+            : d
+        }
+        if (d.spotOrder.includes(spotId)) return d
+        return { ...d, spotOrder: [...d.spotOrder, spotId] }
+      }),
+    }))
+    get().bumpMapRedraw()
+    get().scheduleAiRefresh()
+  },
+
+  removeSpotFromDay: (spotId, dayId) => {
+    set((s) => ({
+      dailyPlans: s.dailyPlans.map((d) =>
+        d.id === dayId
+          ? { ...d, spotOrder: d.spotOrder.filter((id) => id !== spotId) }
+          : d,
+      ),
+    }))
+    get().bumpMapRedraw()
+    get().scheduleAiRefresh()
+  },
+
+  moveSpotBetweenDays: (spotId, fromDayId, toDayId) => {
+    if (fromDayId === toDayId) return
+    set((s) => ({
+      dailyPlans: s.dailyPlans.map((d) => {
+        if (d.id === fromDayId) {
+          return { ...d, spotOrder: d.spotOrder.filter((id) => id !== spotId) }
+        }
+        if (d.id === toDayId) {
+          return d.spotOrder.includes(spotId)
+            ? d
+            : { ...d, spotOrder: [...d.spotOrder, spotId] }
+        }
+        return d
+      }),
+    }))
+    get().bumpMapRedraw()
     get().scheduleAiRefresh()
   },
 
