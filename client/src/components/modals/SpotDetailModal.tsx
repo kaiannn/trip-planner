@@ -58,6 +58,7 @@ export function SpotDetailModal() {
       innerTransport: draft.innerTransport?.trim() || undefined,
       guideUrl: draft.guideUrl?.trim() || undefined,
       imageUrl: draft.imageUrl?.trim() || undefined,
+      imageBlobId: draft.imageBlobId,
       videoUrl: draft.videoUrl?.trim() || undefined,
       xiaohongshuUrls: draft.xiaohongshuUrls?.length ? draft.xiaohongshuUrls : undefined,
     }
