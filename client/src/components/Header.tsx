@@ -14,6 +14,7 @@ export function Header() {
   const pushLog = useTripStore((s) => s.pushLog)
   const resetQuiz = useTripStore((s) => s.resetQuiz)
   const setTripWizardOpen = useTripStore((s) => s.setTripWizardOpen)
+  const loadDemoData = useTripStore((s) => s.loadDemoData)
   const setSettingsOpen = useSettingsStore((s) => s.setSettingsOpen)
   const needsUserKeys = useSettingsStore((s) => s.needsUserKeys)
 
@@ -87,6 +88,22 @@ export function Header() {
               }}
             >
               目的地小测
+            </Btn>
+            <Btn
+              variant="ghost"
+              className="!text-[11px]"
+              onClick={() => {
+                if (
+                  cities.length > 0 &&
+                  !window.confirm('加载示例数据会替换当前所有城市、景点和每日行程,确定吗?')
+                ) {
+                  return
+                }
+                loadDemoData()
+              }}
+              title="一键加载杭州 3 天示例行程"
+            >
+              📦 示例数据
             </Btn>
             <Btn
               variant="ghost"

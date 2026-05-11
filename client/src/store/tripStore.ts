@@ -5,6 +5,12 @@ import { buildTripProfileFromTags } from '../lib/tripProfile'
 import { isDuplicateSpot } from '../lib/geo'
 import { fetchAiRecommend, streamAiRecommend, fetchAiPoiQuery, fetchAiSeedPool, abortPendingAiRequest } from '../api/ai'
 import { fetchAmapPoiList, type AmapPoi } from '../api/amap'
+import {
+  DEMO_CITIES,
+  DEMO_DAILY_PLANS,
+  DEMO_SPOTS,
+  DEMO_TRIP_META,
+} from '../lib/demoData'
 import type {
   AiFocus,
   AiItem,
@@ -58,6 +64,8 @@ interface TripState {
   aiSeedStatus: string
   /** Whether to show unassigned (pool) spots on the map as grey pins */
   showPoolOnMap: boolean
+  /** Two-step product flow: 'collect' = fill pool, 'arrange' = drag into days */
+  appMode: 'collect' | 'arrange'
 }
 
 function makeLog(message: string, level: LogLevel): LogEntry {
@@ -132,6 +140,9 @@ type TripActions = {
   runReasonablenessChecks: () => void
   setAiSeedInput: (v: string) => void
   setShowPoolOnMap: (v: boolean) => void
+  setAppMode: (v: 'collect' | 'arrange') => void
+  /** Create empty days for the current trip date range, up to 14. Idempotent. */
+  ensureDaysForDateRange: () => number
   /** Seed the Pool from a natural-language description via AI + AMap geocoding. */
   seedPoolFromAi: () => Promise<void>
   resetQuiz: () => void
@@ -141,6 +152,8 @@ type TripActions = {
   quizBackFromResult: () => void
   appendExpectationFromQuiz: () => void
   bumpMapRedraw: () => void
+  /** Replace current state with the Hangzhou demo dataset. */
+  loadDemoData: () => void
 }
 
 export const useTripStore = create<TripState & TripActions>()(
@@ -180,8 +193,27 @@ export const useTripStore = create<TripState & TripActions>()(
   aiSeedInput: '',
   aiSeedStatus: '',
   showPoolOnMap: true,
+  appMode: 'collect',
 
   bumpMapRedraw: () => set((s) => ({ mapRedrawNonce: s.mapRedrawNonce + 1 })),
+
+  loadDemoData: () => {
+    set({
+      cities: [...DEMO_CITIES],
+      spots: [...DEMO_SPOTS],
+      dailyPlans: DEMO_DAILY_PLANS.map((d) => ({ ...d, spotOrder: [...d.spotOrder] })),
+      tripTitle: DEMO_TRIP_META.title,
+      tripStart: DEMO_TRIP_META.start,
+      tripEnd: DEMO_TRIP_META.end,
+      tripExpectation: DEMO_TRIP_META.expectation,
+      tripType: DEMO_TRIP_META.type,
+      aiCityId: DEMO_CITIES[0]?.id ?? '',
+      autoSeedPending: null,
+      mapFocusDayId: null,
+    })
+    get().pushLog('已加载示例数据：杭州 3 天，含 8 个景点（3 个已分配到 Day 1）。')
+    get().bumpMapRedraw()
+  },
 
   pushLog: (message, level = 'info') => {
     set((s) => ({ logs: [makeLog(message, level), ...s.logs].slice(0, 200) }))
@@ -745,6 +777,56 @@ export const useTripStore = create<TripState & TripActions>()(
 
   setAiSeedInput: (v) => set({ aiSeedInput: v }),
   setShowPoolOnMap: (v) => set({ showPoolOnMap: v }),
+  setAppMode: (v) => set({ appMode: v }),
+
+  ensureDaysForDateRange: () => {
+    const s = get()
+    // How many days does the trip date range cover?
+    let daysCount = 3 // sensible default if dates aren't set
+    if (s.tripStart && s.tripEnd) {
+      const start = new Date(s.tripStart)
+      const end = new Date(s.tripEnd)
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end >= start) {
+        const diffMs = end.getTime() - start.getTime()
+        daysCount = Math.floor(diffMs / 86400000) + 1 // inclusive of both endpoints
+      }
+    }
+    if (daysCount > 14) {
+      get().pushLog(
+        `行程跨度 ${daysCount} 天太长,自动只创建前 14 天。如果需要更多天数,请手动添加。`,
+        'warn',
+      )
+      daysCount = 14
+    }
+    if (daysCount < 1) daysCount = 1
+
+    const existing = s.dailyPlans.length
+    if (existing >= daysCount) {
+      // Already enough days — don't touch user data.
+      return existing
+    }
+
+    const cityId = s.cities[0]?.id ?? ''
+    const startDate = s.tripStart ? new Date(s.tripStart) : null
+    const newDays: DailyPlan[] = []
+    for (let i = existing; i < daysCount; i++) {
+      const dayDate = startDate
+        ? new Date(startDate.getTime() + i * 86400000).toISOString().slice(0, 10)
+        : undefined
+      newDays.push({
+        id: uid('day'),
+        dayIndex: i + 1,
+        date: dayDate,
+        cityId,
+        lodging: {},
+        spotOrder: [],
+      })
+    }
+    set({ dailyPlans: [...s.dailyPlans, ...newDays] })
+    get().pushLog(`已自动创建 ${newDays.length} 天空白行程,可以开始安排了。`)
+    get().bumpMapRedraw()
+    return s.dailyPlans.length + newDays.length
+  },
 
   seedPoolFromAi: async () => {
     const s = get()
@@ -916,6 +998,7 @@ export const useTripStore = create<TripState & TripActions>()(
         tripType: state.tripType,
         aiCityId: state.aiCityId,
         aiBudget: state.aiBudget,
+        appMode: state.appMode,
       }),
     },
   ),

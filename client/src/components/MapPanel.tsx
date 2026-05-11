@@ -514,7 +514,7 @@ export function MapPanel({
   return (
     <MapContext.Provider value={api}>
       <div className={clsx('flex min-h-0 flex-1 gap-4', className)}>
-        <div className="w-[min(340px,34vw)] shrink-0">{sidebar}</div>
+        <div className="w-[min(380px,38vw)] shrink-0">{sidebar}</div>
         <div className="relative flex min-h-0 min-h-[min(360px,calc(100dvh-12rem))] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200/70 bg-white shadow-md ring-1 ring-slate-900/[0.04]">
           <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-[11px] text-slate-600">
             {legend.map((item) => (
@@ -539,9 +539,9 @@ export function MapPanel({
                 <p className="font-semibold">地图未就绪</p>
                 <p className="whitespace-pre-wrap">{mapLoadError}</p>
                 <p className="text-amber-800/90">
-                  排查：① 浏览器 F12 → Console / Network 是否有高德报错（如 INVALID_USER_KEY、USERKEY_PLAT_NOMATCH）②
-                  控制台 Key 须为「Web 端」，且与 VITE_AMAP_KEY 一致；启用安全密钥时须配置 VITE_AMAP_SECURITY_CODE ③
-                  Key 安全设置里放行访问来源（如 localhost、127.0.0.1）④ 修改 client/.env 后必须重启 npm run dev
+                  排查:① 浏览器 F12 → Console / Network 是否有高德报错(如 INVALID_USER_KEY、USERKEY_PLAT_NOMATCH)②
+                  控制台 Key 须为「Web 端」,且与 VITE_AMAP_KEY 一致;启用安全密钥时须配置 VITE_AMAP_SECURITY_CODE ③
+                  Key 安全设置里放行访问来源(如 localhost、127.0.0.1)④ 修改 client/.env 后必须重启 npm run dev
                 </p>
               </div>
             )}
