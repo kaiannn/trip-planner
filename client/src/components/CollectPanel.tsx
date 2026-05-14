@@ -50,18 +50,6 @@ export function CollectPanel({ className }: { className?: string }) {
 
   return (
     <div className={`flex min-h-0 flex-col gap-2 overflow-y-auto pr-0.5 ${className ?? ''}`}>
-      <div className="shrink-0 rounded-xl border border-teal-200/60 bg-teal-50/40 px-3 py-2 text-[11px] text-teal-900/80">
-        <div className="flex items-center gap-2">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-600 text-[10px] font-bold text-white">
-            1
-          </span>
-          <span className="font-semibold text-teal-900">填景点池</span>
-        </div>
-        <p className="mt-1 leading-relaxed">
-          描述你想去哪,让 AI 帮你搜集候选;或自己搜索添加。填好后点下面的按钮进入第二步,把景点分配到每一天。
-        </p>
-      </div>
-
       <AiSeedPanel />
 
       <Panel title="城市">
@@ -131,7 +119,7 @@ export function CollectPanel({ className }: { className?: string }) {
           }`}
           onClick={handleDone}
         >
-          完成,开始安排 →
+          下一步 →
         </Btn>
         {!canProceed && (
           <p className="mt-1 text-center text-[10px] text-slate-500">

@@ -6,3 +6,9 @@ client/dist/
 .DS_Store
 *.log
 npm-debug.log*
+
+# Project-local AI tooling (skills, scratch agents). These are
+# developer-specific installations — see .claude/skills/ui-ux-pro-max-skill
+# cloned from github.com/nextlevelbuilder/ui-ux-pro-max-skill. Not part
+# of the shipped product.
+.claude/

@@ -176,23 +176,36 @@ export function MapPanel({
         toId: string,
         currentMode: TransportMode,
         _cityName: string | undefined,
+        pixel?: { x: number; y: number },
       ) => {
-        // We can't position from a polyline event reliably without a fresh
-        // pixel coord, so reuse the same InfoWindow flow but skip API calls
-        // and just present the menu.
         const AMapNs = window.AMap
         if (!AMapNs) return
         const a = spots.find((s) => s.id === fromId)?.location
         const b = spots.find((s) => s.id === toId)?.location
         if (!a || !b) return
+
         const wrap = document.createElement('div')
-        wrap.style.fontSize = '12px'
-        wrap.style.minWidth = '140px'
+        wrap.style.cssText =
+          'position:absolute;z-index:1200;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.15),0 0 0 1px rgba(0,0,0,0.05);padding:8px 12px;font-size:12px;min-width:140px;'
         const title = document.createElement('div')
         title.style.fontWeight = '600'
         title.style.marginBottom = '4px'
+        title.style.color = '#334155'
         title.textContent = '选择交通方式'
         wrap.appendChild(title)
+
+        const close = () => {
+          wrap.remove()
+          document.removeEventListener('mousedown', onOutside)
+          document.removeEventListener('keydown', onEscape)
+        }
+        const onOutside = (ev: MouseEvent) => {
+          if (!wrap.contains(ev.target as Node)) close()
+        }
+        const onEscape = (ev: KeyboardEvent) => {
+          if (ev.key === 'Escape') close()
+        }
+
         ;(['driving', 'walking', 'transit', 'riding'] as TransportMode[]).forEach(
           (m) => {
             const row = document.createElement('button')
@@ -209,18 +222,34 @@ export function MapPanel({
             }`
             row.addEventListener('click', () => {
               setSegmentMode(dayId, fromId, toId, m)
-              iw.close()
+              close()
             })
             wrap.appendChild(row)
           },
         )
-        const iw = new AMapNs.InfoWindow({
-          offset: new AMapNs.Pixel(0, -8),
-        })
-        iw.setContent(wrap)
-        const midLng = (a.lng + b.lng) / 2
-        const midLat = (a.lat + b.lat) / 2
-        iw.open(map, new AMapNs.LngLat(midLng, midLat))
+
+        const container = map.getContainer()
+        if (pixel) {
+          wrap.style.left = pixel.x + 'px'
+          wrap.style.top = pixel.y + 'px'
+        } else {
+          const midLng = (a.lng + b.lng) / 2
+          const midLat = (a.lat + b.lat) / 2
+          const midPixel = (map as unknown as Record<string, unknown>).lnglatToPixel as
+            | ((lnglat: [number, number]) => { x: number; y: number })
+            | undefined
+          if (midPixel) {
+            const p = midPixel([midLng, midLat])
+            wrap.style.left = p.x + 'px'
+            wrap.style.top = p.y + 'px'
+          }
+        }
+        container.appendChild(wrap)
+
+        setTimeout(() => {
+          document.addEventListener('mousedown', onOutside)
+          document.addEventListener('keydown', onEscape)
+        }, 0)
       }
 
       routePolylinesRef.current.forEach((p) => p.setMap(null))
@@ -310,8 +339,8 @@ export function MapPanel({
                 line.on('click', () =>
                   showSegmentPopup(day.id, fromId, toId, a, b, mode, cityName),
                 )
-                line.on('rightclick', () =>
-                  showSegmentMenu(day.id, fromId, toId, mode, cityName),
+                line.on('rightclick', (e: AMap.MapEvent & { pixel?: { x: number; y: number } }) =>
+                  showSegmentMenu(day.id, fromId, toId, mode, cityName, e.pixel),
                 )
 
                 const midIdx = Math.floor(seg.path.length / 2)
@@ -357,8 +386,8 @@ export function MapPanel({
                 line.on('click', () =>
                   showSegmentPopup(day.id, fromId, toId, a, b, mode, cityName),
                 )
-                line.on('rightclick', () =>
-                  showSegmentMenu(day.id, fromId, toId, mode, cityName),
+                line.on('rightclick', (e: AMap.MapEvent & { pixel?: { x: number; y: number } }) =>
+                  showSegmentMenu(day.id, fromId, toId, mode, cityName, e.pixel),
                 )
                 const d = distanceInMeters(a.lat, a.lng, b.lat, b.lng)
                 const label = new AMap.Text({
@@ -728,20 +757,17 @@ export function MapPanel({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapFocusSpotId) return
-    // Read spots from the live store to avoid adding them to deps.
     const spot = useTripStore
       .getState()
       .spots.find((s) => s.id === mapFocusSpotId)
     if (!spot) return
     try {
-      map.panTo([spot.location.lng, spot.location.lat])
+      requestAnimationFrame(() => {
+        map.panTo([spot.location.lng, spot.location.lat])
+        map.setZoom(13)
+      })
     } catch {
-      // panTo not supported — fall back to setCenter
-      try {
-        map.setCenter([spot.location.lng, spot.location.lat])
-      } catch {
-        /* ignore */
-      }
+      /* ignore */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapFocusSpotId])

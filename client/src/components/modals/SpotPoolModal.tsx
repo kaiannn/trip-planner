@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTripStore } from '../../store/tripStore'
 import { Btn, Field } from '../ui'
 import { SpotImage } from '../SpotImage'
@@ -48,9 +48,17 @@ export function SpotPoolModal() {
 
   const [appliedCoordsKey, setAppliedCoordsKey] = useState<object | null>(null)
 
-  if (open && sortedCities.length && !amapCityName) {
-    setAmapCityName(sortedCities[0].name)
-  }
+  useEffect(() => {
+    if (open && sortedCities.length && !amapCityName) {
+      setAmapCityName(sortedCities[0].name)
+    }
+  }, [open, sortedCities, amapCityName, setAmapCityName])
+
+  useEffect(() => {
+    if (sortedCities.length && !spotCityId) {
+      setSpotCityId(sortedCities[0].id)
+    }
+  }, [sortedCities, spotCityId])
 
   const coordsObj = pendingMapCoords
   if (coordsObj && open && coordsObj !== appliedCoordsKey) {
@@ -65,10 +73,6 @@ export function SpotPoolModal() {
     if (pendingMapSuggestedAddress && !description.trim()) {
       setDescription(pendingMapSuggestedAddress)
     }
-  }
-
-  if (sortedCities.length && !spotCityId) {
-    setSpotCityId(sortedCities[0].id)
   }
 
   const filtered = useMemo(() => {

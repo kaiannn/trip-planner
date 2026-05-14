@@ -44,6 +44,11 @@ interface TripState {
   logs: LogEntry[]
   spotPoolOpen: boolean
   dayPlanOpen: boolean
+  /** Which day the DayPlanModal should focus when it opens. Set by the
+   * 编辑 button on a day card; cleared when the modal closes. Fixes the
+   * old bug where 编辑 always landed on whichever day was last selected
+   * inside the modal. */
+  dayPlanEditDayId: string | null
   tripWizardOpen: boolean
   spotDetailSpot: Spot | null
   poolCityFilter: string
@@ -106,6 +111,9 @@ type TripActions = {
   setAiBudget: (v: string) => void
   setSpotPoolOpen: (v: boolean) => void
   setDayPlanOpen: (v: boolean) => void
+  /** Open the day plan modal focused on a specific day. Convenience
+   * action so callers don't have to set two flags manually. */
+  openDayPlanFor: (dayId: string) => void
   setTripWizardOpen: (v: boolean) => void
   setSpotDetail: (s: Spot | null) => void
   setPoolCityFilter: (v: string) => void
@@ -136,6 +144,7 @@ type TripActions = {
   }) => void
   deleteDay: (dayId: string) => void
   setDaySpotOrder: (dayId: string, spotOrder: string[]) => void
+  reorderDays: (activeDayId: string, overDayId: string) => void
   /** Set the transport mode for one segment within a day. */
   setSegmentMode: (
     dayId: string,
@@ -198,6 +207,7 @@ export const useTripStore = create<TripState & TripActions>()(
   logs: [],
   spotPoolOpen: false,
   dayPlanOpen: false,
+  dayPlanEditDayId: null,
   tripWizardOpen: false,
   spotDetailSpot: null,
   poolCityFilter: '',
@@ -249,7 +259,10 @@ export const useTripStore = create<TripState & TripActions>()(
   setAiCityId: (id) => set({ aiCityId: id }),
   setAiBudget: (v) => set({ aiBudget: v }),
   setSpotPoolOpen: (v) => set({ spotPoolOpen: v }),
-  setDayPlanOpen: (v) => set({ dayPlanOpen: v }),
+  setDayPlanOpen: (v) =>
+    set({ dayPlanOpen: v, ...(v ? {} : { dayPlanEditDayId: null }) }),
+  openDayPlanFor: (dayId) =>
+    set({ dayPlanOpen: true, dayPlanEditDayId: dayId }),
   setTripWizardOpen: (v) => set({ tripWizardOpen: v }),
   setSpotDetail: (spot) => set({ spotDetailSpot: spot }),
   setPoolCityFilter: (v) => set({ poolCityFilter: v }),
@@ -409,6 +422,23 @@ export const useTripStore = create<TripState & TripActions>()(
       ),
     }))
     get().scheduleAiRefresh()
+  },
+
+  reorderDays: (activeDayId, overDayId) => {
+    if (activeDayId === overDayId) return
+    set((s) => {
+      const active = s.dailyPlans.find((d) => d.id === activeDayId)
+      const over = s.dailyPlans.find((d) => d.id === overDayId)
+      if (!active || !over) return s
+      return {
+        dailyPlans: s.dailyPlans.map((d) => {
+          if (d.id === activeDayId) return { ...d, dayIndex: over.dayIndex }
+          if (d.id === overDayId) return { ...d, dayIndex: active.dayIndex }
+          return d
+        }),
+      }
+    })
+    get().bumpMapRedraw()
   },
 
   setSegmentMode: (dayId, fromSpotId, toSpotId, mode) => {
@@ -955,7 +985,12 @@ export const useTripStore = create<TripState & TripActions>()(
       quizPhase: 'question',
     }),
 
-  setAiSeedInput: (v) => set({ aiSeedInput: v }),
+  setAiSeedInput: (v) =>
+    // Mirror into tripExpectation so downstream consumers (aiPrompt.ts,
+    // syncTripIntelligence) keep working without rewiring. aiSeedInput is
+    // the user-facing single source of truth; tripExpectation becomes an
+    // echo that preserves the existing AI prompt pipeline.
+    set({ aiSeedInput: v, tripExpectation: v }),
   setAppMode: (v) => set({ appMode: v }),
 
   ensureDaysForDateRange: () => {
@@ -1105,12 +1140,24 @@ export const useTripStore = create<TripState & TripActions>()(
 
     set({
       aiSeedStatus: `已添加 ${added} 个景点到池子${
-        skipped ? `，${skipped} 个因无法定位被跳过` : ''
+        skipped ? `,${skipped} 个因无法定位被跳过` : ''
       }。`,
     })
     get().pushLog(
-      `AI 景点池填充完成：+${added} 个${skipped ? `（跳过 ${skipped} 个）` : ''}。`,
+      `AI 景点池填充完成:+${added} 个${skipped ? `(跳过 ${skipped} 个)` : ''}。`,
     )
+
+    // Merged behavior (option B): after a successful seed, also run the
+    // recommendation sync so the user gets AI suggestions without a second
+    // button click. syncTripIntelligence is a no-op if there are no cities
+    // or the LLM key is missing, so this is safe even when the seed was
+    // partial. Failures here are logged but don't rewind the seed success.
+    try {
+      await get().syncTripIntelligence()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      get().pushLog(`AI 建议生成失败:${msg}`, 'warn')
+    }
   },
 
   setQuizNode: (id) => {

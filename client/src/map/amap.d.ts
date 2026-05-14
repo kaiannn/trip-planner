@@ -10,6 +10,7 @@ declare namespace AMap {
     setZoom(zoom: number): void
     resize(): void
     destroy(): void
+    getContainer(): HTMLElement
   }
 
   interface MapOptions {

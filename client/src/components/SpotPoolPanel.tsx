@@ -102,10 +102,7 @@ export function SpotPoolPanel() {
                 {unassigned.length} 未分配 · {spots.length} 总数
               </span>
             </div>
-            <div className="mt-0.5 text-[11px] text-slate-500">
-              单击定位 · ✏️ 编辑 · 右键更多
-            </div>
-          </div>
+        </div>
           <Btn
             variant="ghost"
             className="!py-1 !text-[11px]"
@@ -151,6 +148,7 @@ export function SpotPoolPanel() {
                 <li key={s.id}>
                   <div
                     onContextMenu={(e) => menu.open(e, s)}
+                    title="右键查看更多"
                     className={`group flex w-full items-center gap-2 rounded-lg border bg-white py-1.5 pl-2.5 pr-1.5 shadow-sm transition ${
                       focused
                         ? 'border-teal-400 ring-2 ring-teal-200'
@@ -168,6 +166,7 @@ export function SpotPoolPanel() {
                       onClick={() => setMapFocusSpotId(s.id)}
                       onDoubleClick={() => setSpotDetail(s)}
                       className="min-w-0 flex-1 truncate text-left text-[13px] font-medium text-slate-800 group-hover:text-teal-900"
+                      title="单击定位"
                     >
                       {s.name}
                     </button>

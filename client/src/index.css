@@ -1,97 +1,112 @@
 @import 'tailwindcss';
 
 /*
- * "Wet stone on kraft paper" — Morandi-natural palette.
+ * "Clean & modern — travel-agency palette"
  *
- * Override Tailwind's teal/slate color scales so existing utility
- * classes (bg-teal-600, text-slate-700, ...) get their meaning
- * remapped without touching a single component className. All of
- * Tailwind's other scales stay intact as fallbacks.
+ * Design spec sourced from ui-ux-pro-max skill:
+ *   - Color palette: Travel/Tourism Agency (sky blue + adventure orange)
+ *   - Style philosophy: Flat Design (shadows minimized, borders do the work)
+ *   - Typography: Inter only (no serif display)
  *
- * Accent scales:
- *   teal-*   → sage green (primary accent, was brand teal)
- *   slate-*  → warm ink / kraft tones (was cool grey)
- *   amber-*  → sandstone / clay (warning remains readable)
- *   sky-*    → dusk purple (secondary accent)
+ * Implementation approach: same CSS variable remapping trick as the prior
+ * redesign — override Tailwind's teal/slate/amber/sky scales at the
+ * @theme level so existing utility classes (bg-teal-600, text-slate-800,
+ * ring-amber-200, ...) automatically pick up the new meaning. No component
+ * className changes required.
+ *
+ * Accent scale remapping:
+ *   teal-*   → sky blue (primary: buttons, active tabs, focused glow)
+ *   slate-*  → cool neutral gray (text, borders, muted surfaces)
+ *   amber-*  → adventure orange (accent: AI, current-day, highlights)
+ *   sky-*    → sky blue (kept as secondary/info — same family as primary)
+ *   emerald-*→ neutral success green (day-realism chip OK-state)
+ *   red-*    → standard destructive red
  */
 @theme {
   --font-sans:
     'Inter', 'Noto Sans SC', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
     'Segoe UI Emoji';
+  /* Serif kept as a fallback reference, but we no longer apply it anywhere. */
   --font-serif:
-    'DM Serif Display', 'Noto Serif SC', Georgia, serif;
+    'Inter', ui-sans-serif, system-ui, sans-serif;
 
-  /* Sage green (was teal) */
-  --color-teal-50:  #f1f3ee;
-  --color-teal-100: #e1e7da;
-  --color-teal-200: #c6d2ba;
-  --color-teal-300: #a7b898;
-  --color-teal-400: #8a9c80;
-  --color-teal-500: #748866;
-  --color-teal-600: #5f7354;
-  --color-teal-700: #4d5d45;
-  --color-teal-800: #3d4a38;
-  --color-teal-900: #2f392c;
+  /* Sky blue (primary accent) — from skill Result #1.
+   * 600 = #0EA5E9 (primary token); the rest are standard Tailwind sky-*
+   * stops so hover/active states feel natural. */
+  --color-teal-50:  #F0F9FF;
+  --color-teal-100: #E0F2FE;
+  --color-teal-200: #BAE6FD;
+  --color-teal-300: #7DD3FC;
+  --color-teal-400: #38BDF8;
+  --color-teal-500: #0EA5E9;
+  --color-teal-600: #0284C7;
+  --color-teal-700: #0369A1;
+  --color-teal-800: #075985;
+  --color-teal-900: #0C4A6E;
 
-  /* Warm ink + kraft (was cool slate) */
-  --color-slate-50:  #f5f0e6;
-  --color-slate-100: #ebe4d3;
-  --color-slate-200: #d8cfba;
-  --color-slate-300: #bdb199;
-  --color-slate-400: #a39679;
-  --color-slate-500: #867a5f;
-  --color-slate-600: #6a6049;
-  --color-slate-700: #524a39;
-  --color-slate-800: #3f3a2e;
-  --color-slate-900: #2d2921;
+  /* Cool neutral gray (text, borders, chrome) — replaces warm kraft tones.
+   * Using standard Tailwind slate values; this is the "flat design neutral". */
+  --color-slate-50:  #F8FAFC;
+  --color-slate-100: #F1F5F9;
+  --color-slate-200: #E2E8F0;
+  --color-slate-300: #CBD5E1;
+  --color-slate-400: #94A3B8;
+  --color-slate-500: #64748B;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1E293B;
+  --color-slate-900: #0F172A;
 
-  /* Sandstone / clay (was amber) */
-  --color-amber-50:  #f5ecdd;
-  --color-amber-100: #ead8ba;
-  --color-amber-200: #dcbf95;
-  --color-amber-300: #c9a473;
-  --color-amber-400: #b88a58;
-  --color-amber-500: #a87240;
-  --color-amber-600: #8a5e35;
-  --color-amber-700: #6f4b2b;
-  --color-amber-800: #563a22;
-  --color-amber-900: #3e2a19;
+  /* Adventure orange (accent) — from skill Result #1.
+   * 600 = #EA580C (WCAG-adjusted accent token). Used sparingly: AI button,
+   * current-day marker, "unassigned" emphasis. */
+  --color-amber-50:  #FFF7ED;
+  --color-amber-100: #FFEDD5;
+  --color-amber-200: #FED7AA;
+  --color-amber-300: #FDBA74;
+  --color-amber-400: #FB923C;
+  --color-amber-500: #F97316;
+  --color-amber-600: #EA580C;
+  --color-amber-700: #C2410C;
+  --color-amber-800: #9A3412;
+  --color-amber-900: #7C2D12;
 
-  /* Dusk purple (was sky) */
-  --color-sky-50:  #f1eef0;
-  --color-sky-100: #e0dbe2;
-  --color-sky-200: #c8c0cb;
-  --color-sky-300: #aea3b3;
-  --color-sky-400: #9b8aa0;
-  --color-sky-500: #83738b;
-  --color-sky-600: #6b5d72;
-  --color-sky-700: #554a5b;
-  --color-sky-800: #413843;
-  --color-sky-900: #2e282f;
+  /* Sky — kept as standard Tailwind sky (same blue family as primary).
+   * Used for info/secondary hints, e.g. the Step 2 callout card. */
+  --color-sky-50:  #F0F9FF;
+  --color-sky-100: #E0F2FE;
+  --color-sky-200: #BAE6FD;
+  --color-sky-300: #7DD3FC;
+  --color-sky-400: #38BDF8;
+  --color-sky-500: #0EA5E9;
+  --color-sky-600: #0284C7;
+  --color-sky-700: #0369A1;
+  --color-sky-800: #075985;
+  --color-sky-900: #0C4A6E;
 
-  /* Soft moss / emerald — used for the day-realism chip */
-  --color-emerald-50:  #ecefe6;
-  --color-emerald-100: #d4dcc6;
-  --color-emerald-200: #b4c09e;
-  --color-emerald-300: #93a477;
-  --color-emerald-400: #748a58;
-  --color-emerald-500: #5b7143;
-  --color-emerald-600: #475934;
-  --color-emerald-700: #374527;
-  --color-emerald-800: #28321c;
-  --color-emerald-900: #1a2113;
+  /* Emerald — kept as standard Tailwind emerald for the "day OK" realism chip. */
+  --color-emerald-50:  #ECFDF5;
+  --color-emerald-100: #D1FAE5;
+  --color-emerald-200: #A7F3D0;
+  --color-emerald-300: #6EE7B7;
+  --color-emerald-400: #34D399;
+  --color-emerald-500: #10B981;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #047857;
+  --color-emerald-800: #065F46;
+  --color-emerald-900: #064E3B;
 
-  /* Red softened to faded burgundy */
-  --color-red-50:  #f4e6e3;
-  --color-red-100: #e4c4bd;
-  --color-red-200: #d19d91;
-  --color-red-300: #ba7666;
-  --color-red-400: #a25849;
-  --color-red-500: #88443a;
-  --color-red-600: #6f382f;
-  --color-red-700: #572c26;
-  --color-red-800: #3f211c;
-  --color-red-900: #2a1613;
+  /* Red — standard Tailwind red for destructive actions. */
+  --color-red-50:  #FEF2F2;
+  --color-red-100: #FEE2E2;
+  --color-red-200: #FECACA;
+  --color-red-300: #FCA5A5;
+  --color-red-400: #F87171;
+  --color-red-500: #EF4444;
+  --color-red-600: #DC2626;
+  --color-red-700: #B91C1C;
+  --color-red-800: #991B1B;
+  --color-red-900: #7F1D1D;
 }
 
 html {
@@ -105,81 +120,96 @@ html {
     'calt' 1;
 }
 
-/* ---------- Kraft paper body ----------
- * Background is a warm kraft paper tone with a procedurally-generated
- * fiber texture (inline SVG filter, no image download). The texture
- * is low-opacity so text stays legible.
+/* ---------- Pale sky background ----------
+ * Travel/Tourism palette background: #F0F9FF (very pale sky tint).
+ * No paper texture, no SVG noise, no warm vignette — flat design.
  */
 body {
-  @apply m-0 min-h-dvh font-sans text-base leading-relaxed text-slate-800 antialiased;
-  background-color: #e8dfd1;
-  background-image:
-    /* Warm vignette */
-    radial-gradient(ellipse 100% 70% at 50% -20%, rgba(201, 164, 115, 0.14), transparent 55%),
-    radial-gradient(ellipse 60% 45% at 100% 0%, rgba(155, 138, 160, 0.10), transparent 45%),
-    /* Paper fiber noise (inline SVG) */
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.36 0 0 0 0 0.30 0 0 0 0 0.22 0 0 0 0.13 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
-    linear-gradient(180deg, #ece3d5 0%, #e6ddce 40%, #ded4c3 100%);
-  background-blend-mode: normal, normal, multiply, normal;
+  @apply m-0 min-h-dvh font-sans text-base leading-relaxed text-slate-900 antialiased;
+  background-color: #F0F9FF;
 }
 
 #root {
   @apply min-h-dvh;
 }
 
-/* ---------- Serif display type ----------
- * Used on h1/h2 that carry weight; body stays sans for legibility.
+/* ---------- Display type ----------
+ * Flat design uses weight (not family) for hierarchy. .font-serif is
+ * kept as an alias for font-sans so existing classNames still compile,
+ * but it renders identical to body text.
  */
 .font-serif {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   letter-spacing: -0.01em;
 }
 
 h1, h2 {
-  font-family: var(--font-serif);
-  letter-spacing: -0.01em;
-  color: #3f3a2e;
+  font-family: var(--font-sans);
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: #0F172A;
 }
 
-/* ---------- Wet stone — irregular blob radii ---------- */
+/* ---------- Blob shapes → uniform rounding ----------
+ * The Morandi redesign used asymmetric "stone" border-radius values.
+ * Flat design prefers consistent, conservative rounding. Re-alias the
+ * old blob classes to a uniform 8–12px so existing components stay
+ * visually coherent without touching their className lists.
+ */
 .stone-1 {
-  border-radius: 67% 33% 64% 36% / 41% 59% 38% 62%;
+  border-radius: 12px;
 }
 .stone-2 {
-  border-radius: 58% 42% 38% 62% / 52% 48% 58% 42%;
+  border-radius: 12px;
 }
 .stone-3 {
-  border-radius: 42% 58% 54% 46% / 60% 44% 56% 40%;
+  border-radius: 10px;
 }
 .stone-button {
-  border-radius: 45% 55% 50% 50% / 55% 48% 52% 45%;
+  border-radius: 8px;
 }
-
-/* Asymmetric soft corners for day cards (not full blob, just warm). */
 .warm-card {
-  border-radius: 18px 8px 16px 10px;
+  border-radius: 12px;
 }
 
-/* ---------- Table-heavy shadows ----------
- * Only cast downward, no halo — objects feel "placed on" the paper.
+/* ---------- Shadows: minimal, flat-design friendly ----------
+ * Borders do most of the structural work; shadows are a subtle second
+ * voice for surfaces that need to lift off the background (modals,
+ * floating panels). All shadow tokens remapped to cool-neutral
+ * blue-black rather than the previous warm kraft-brown.
  */
 .shadow-stone {
   box-shadow:
-    0 10px 20px -8px rgba(63, 58, 46, 0.20),
-    0 4px 8px -2px rgba(63, 58, 46, 0.10);
+    0 1px 2px 0 rgba(15, 23, 42, 0.04),
+    0 1px 3px 0 rgba(15, 23, 42, 0.06);
 }
 .shadow-stone-sm {
   box-shadow:
-    0 6px 12px -6px rgba(63, 58, 46, 0.16),
-    0 2px 4px -1px rgba(63, 58, 46, 0.08);
+    0 1px 2px 0 rgba(15, 23, 42, 0.04);
 }
 .shadow-stone-lg {
   box-shadow:
-    0 20px 40px -16px rgba(63, 58, 46, 0.28),
-    0 8px 16px -6px rgba(63, 58, 46, 0.14);
+    0 4px 6px -1px rgba(15, 23, 42, 0.06),
+    0 2px 4px -2px rgba(15, 23, 42, 0.04);
 }
 
-/* Fade + subtle slide for app-mode transitions. */
+/* ---------- AMap label wrapper reset ----------
+ * AMap.Marker `label` renders your HTML content inside a wrapper div
+ * (.amap-marker-label) that ships with a white background, a 1px border,
+ * and a small drop shadow by default. When our label content is already a
+ * styled pill, that wrapper shows up as a square rectangle behind / around
+ * the pill — visually ugly and clipping-inconsistent with the pill's fully-
+ * rounded shape. Force the wrapper to be invisible so only the pill shows.
+ */
+.amap-marker-label {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  white-space: nowrap;
+}
+
+/* Fade + subtle slide for app-mode transitions (kept from prior redesign). */
 @keyframes fade-slide {
   0% {
     opacity: 0;
@@ -192,4 +222,24 @@ h1, h2 {
 }
 .animate-fade-slide {
   animation: fade-slide 240ms ease-out;
+}
+
+/* Gear icon hover spin — used by the per-day-card edit button.
+ * On hover the gear rotates 45° instead of a full spin; full rotations
+ * on a small icon feel busy, a 45° tick reads as "cogs turning slightly"
+ * which matches the settings metaphor. Continuous spin (1.2s loop) plays
+ * only while hovered, so idle state is still. The `will-change` hint
+ * keeps the transform on its own compositing layer, which prevents
+ * subpixel shimmer on hover. */
+.gear-hover {
+  transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms ease;
+  will-change: transform;
+}
+.group:hover > .gear-hover,
+.gear-hover:hover {
+  animation: gear-spin 1.6s linear infinite;
+}
+@keyframes gear-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
