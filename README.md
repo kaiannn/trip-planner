@@ -4,9 +4,7 @@
 
 # Trip Planner
 
-**AI 驱动的旅行行程规划工具**
-
-用自然语言描述你的旅行期望，结合高德地图与大语言模型，智能生成城市、景点与每日路线。
+A map-first, AI-assisted trip planner. Built because every existing one is either a chatbot pretending to be a planner, or a spreadsheet pretending to be an itinerary.
 
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React_19-20232A?logo=react&logoColor=61DAFB)](https://react.dev/)
@@ -23,44 +21,42 @@
   <img src="docs/screenshots/01-main.png" alt="Trip Planner 主界面" width="900" />
 </p>
 
-> **English:** AI-driven trip planner. Describe your trip in natural language and it generates cities, points of interest, and daily routes by combining a DeepSeek/OpenAI-compatible LLM with the AMap (Gaode) POI database. React 19 + Vite frontend, Express backend. Skip to [Quickstart](#-快速开始) — the commands are the same in any language.
+> **English:** Describe your trip in natural language → AI seeds a pool of candidate spots → drag them onto days. The AMap (Gaode) JS SDK handles geocoding, routing, and weather. A DeepSeek/OpenAI-compatible LLM handles recommendations. React 19 + Vite + Express. Skip to [Quickstart](#快速开始).
 
-## ✨ 功能亮点
+## 思路
 
-- 🗺️ **地图可视化** — 基于高德地图 JS API 2.0，城市标记、景点标注、每日路线连线一目了然
-- 🤖 **AI 智能推荐** — 接入 DeepSeek / OpenAI 兼容 LLM，根据你的行程上下文生成景点、住宿、注意事项
-- 🔍 **高德 POI 搜索** — 关键词搜索 + AI 自然语言解析，从高德数据库精准匹配景点
-- 📋 **按天行程管理** — 可视化创建每日计划，拖拽景点顺序，自动计算城际距离
-- 🧪 **旅行性格测试** — 8 道趣味问题，生成个性化旅行画像，融入 AI 推荐上下文
-- 💾 **本地持久化** — 基于 Zustand Persist，行程数据自动保存，刷新不丢失
-- ⚡ **智能同步** — 修改行程后自动防抖更新 AI 推荐，一键触发地图重绘 + 合理性检查 + AI 分析
+工作流分两步:
 
-## 🏗️ 架构概览
+1. **Collect (景点池)** — 你描述这趟行程("杭州 4 天,和伴侣,喜欢安静的地方"),AI 返回一批候选景点,逐个用高德地理编码,丢进右侧"景点池"。地图上同时打点。
+2. **Arrange (按天安排)** — 把池里的景点拖到任意一天。每天卡片显示数量、距离合理性提示、可选天气。地图按"被聚焦的那一天"高亮路线。
 
-```
-┌─────────────────────────────────────────────────┐
-│                   Browser                        │
-│  ┌───────────┐  ┌──────────┐  ┌──────────────┐  │
-│  │  React UI │──│ Zustand  │──│ AMap JS API  │  │
-│  │ + Tailwind│  │  Store   │  │   2.0 地图    │  │
-│  └─────┬─────┘  └──────────┘  └──────────────┘  │
-│        │ fetch                                    │
-├────────┼────────────────────────────────────────-─┤
-│        ▼                                          │
-│  ┌─────────────────┐                              │
-│  │  Express Server  │──── /api/ai/*  ──→ LLM API │
-│  │   (Node.js)      │──── /api/amap/* ──→ 高德 API│
-│  └─────────────────┘                              │
-└───────────────────────────────────────────────────┘
-```
+景点不是 AI 单方面拍板的:你能手动加 / 改 / 删,可以右键地图任意位置"添加为景点",可以从高德 POI 搜索关键词。AI 只是个起点。
 
-## 🚀 快速开始
+为什么这样: 大部分 AI 旅游产品要么把对话当核心(让你和聊天框反复磨,但你看不见地图),要么把表单当核心(填一堆框,然后弹出一个静态页)。这个项目把地图当核心,AI 当起点,行程是手工调整出来的。
+
+## 它能做什么
+
+- **AI 填景点池** + 自动跑一遍推荐(基于完整行程上下文,不只是单条 prompt)
+- **每段路线独立交通方式** — 同一天里 A→B 开车、B→C 步行、C→D 地铁,各自调用对应的高德服务
+- **每个景点支持照片** — 浏览器端 canvas 缩到 1280px、JPEG 0.8、存 IndexedDB,不污染服务端
+- **三种 spot 类型**(`sight` / `hotel` / `restaurant`) — TypeScript discriminated union,各自字段不同(餐厅有链接,酒店有价格,景点有视频/小红书 URL)
+- **持久化** — Zustand persist 到 localStorage,刷新不丢
+- **天气** — AMap.Weather,每天卡片可选(实测 ≤4 天预报)
+- **目的地小测** — 没头绪时点一下,生成旅行画像写进 AI 期望
+
+## 已知 caveats
+
+- LLM key 缺失时,AI 功能全部静默失败 — 但手动操作完整可用
+- AMap.Weather 超过 4 天就没有预报数据,所以远期行程的天气 chip 会安静地不显示
+- AI 推荐的景点偶尔会返回高德定位不到的虚构地名 — 现在的策略是直接跳过这条候选,不挂在城市中心糊弄
+
+## 快速开始
 
 ### 前置要求
 
-- [Node.js](https://nodejs.org/) **18+**（推荐 LTS 版本）
-- [高德开放平台](https://console.amap.com/) Key（需开通 Web 端 + Web 服务）
-- LLM API Key（DeepSeek / OpenAI 兼容接口）
+- [Node.js](https://nodejs.org/) 18+
+- [高德开放平台](https://console.amap.com/) Key — 需要 Web 端 (JS API) 和 Web 服务两个
+- LLM API Key — DeepSeek 或任意 OpenAI 兼容接口
 
 ### 安装
 
@@ -73,30 +69,29 @@ cd client && npm install && cd ..
 
 ### 配置
 
-```bash
-# 后端配置
-cp .env.example .env
+两个 `.env` 文件,前后端各一个:
 
-# 前端地图配置
+```bash
+cp .env.example .env
 cp client/.env.example client/.env
 ```
 
-编辑 `.env`：
+填 `.env`:
 
 ```env
 LLM_API_KEY=sk-your-llm-key
 AMAP_KEY=your-amap-web-service-key
 ```
 
-编辑 `client/.env`：
+填 `client/.env`:
 
 ```env
 VITE_AMAP_KEY=your-amap-js-api-key
 ```
 
-> **💡 也可以不配置 `.env`** — 启动后在浏览器界面右上角 ⚙️ 设置中直接填入 Key，存储在本地浏览器中。
+不想写文件也行 — 浏览器界面右上角齿轮里能填同样的 key,存在 localStorage。
 
-### 开发
+### 跑起来
 
 ```bash
 npm run dev
@@ -104,142 +99,106 @@ npm run dev
 
 | 服务 | 地址 |
 |:---|:---|
-| 前端界面 | http://localhost:5173 |
-| 后端 API | http://localhost:3001 |
+| 前端 (Vite) | http://localhost:5173 |
+| 后端 (Express) | http://localhost:3001 |
 
-### 生产部署
+### 部署
+
+构建一份静态产物,Express 同时托管 SPA 和 API:
 
 ```bash
 npm run build
 NODE_ENV=production npm start
-# → http://localhost:3001（Express 托管前端静态资源 + API）
+# → http://localhost:3001
 ```
 
-## 🔐 环境变量
+详细的两种部署形态(单服务 / 前后端分离)见下方 [部署](#部署)。
 
-### 根目录 `.env`（后端）
+## 环境变量
 
-| 变量 | 必填 | 默认值 | 说明 |
+`.env` (后端):
+
+| 变量 | 必填 | 默认 | 说明 |
 |:---|:---:|:---|:---|
-| `LLM_API_KEY` | * | — | LLM API Key（支持浏览器端填入） |
-| `AMAP_KEY` | * | — | 高德 Web 服务 Key（支持浏览器端填入） |
-| `LLM_BASE_URL` | | `https://api.deepseek.com/v1` | LLM 接口地址 |
-| `LLM_MODEL` | | `deepseek-chat` | 模型名称 |
-| `PORT` | | `3001` | 服务端口 |
-| `CORS_ORIGINS` | | — | 生产环境允许的域名（逗号分隔） |
+| `LLM_API_KEY` | * | — | DeepSeek / OpenAI 兼容 key |
+| `AMAP_KEY` | * | — | 高德 Web 服务 key |
+| `LLM_BASE_URL` | | `https://api.deepseek.com/v1` | LLM endpoint |
+| `LLM_MODEL` | | `deepseek-chat` | 模型名 |
+| `PORT` | | `3001` | 后端端口 |
+| `CORS_ORIGINS` | | — | 生产环境允许的域(逗号分隔) |
 
-### `client/.env`（前端）
+`client/.env` (前端):
 
 | 变量 | 必填 | 说明 |
 |:---|:---:|:---|
-| `VITE_AMAP_KEY` | 建议 | 高德 Web 端 JS API Key |
-| `VITE_AMAP_SECURITY_CODE` | | 高德安全密钥（如启用） |
+| `VITE_AMAP_KEY` | 建议 | 高德 JS API key |
+| `VITE_AMAP_SECURITY_CODE` | | 如果你启用了高德安全密钥 |
 
-> \* 标记的变量可通过浏览器端设置面板代替，无需写入 `.env` 文件。
+带 `*` 的可以不写文件,改成在浏览器设置面板里填。
 
-## 📡 API 接口
+## API
+
+后端就这几条,纯代理 + AI 编排:
 
 | 方法 | 路径 | 说明 |
 |:---|:---|:---|
-| `GET` | `/api/config/status` | 查询服务端 Key 配置状态 |
-| `POST` | `/api/ai/recommend` | 基于行程上下文的 AI 结构化推荐 |
-| `POST` | `/api/ai/poi-query` | 自然语言 → 高德 POI 搜索参数 |
-| `GET` | `/api/amap/poi` | 高德 POI 关键词搜索（代理） |
-| `GET` | `/api/amap/poi/detail` | 高德 POI 详情查询（代理） |
+| `GET` | `/api/config/status` | 后端 key 配置状态 |
+| `POST` | `/api/ai/recommend` | 长上下文结构化推荐(spots / lodging / other) |
+| `POST` | `/api/ai/recommend/stream` | 同上但 SSE 流式输出 |
+| `POST` | `/api/ai/seed-pool` | 自然语言 → 候选景点列表 |
+| `POST` | `/api/ai/poi-query` | 自然语言 → 高德搜索参数 |
+| `GET` | `/api/amap/poi` | 高德 POI 关键词搜索代理 |
+| `GET` | `/api/amap/poi/detail` | 高德 POI 详情代理 |
 
-## 📁 项目结构
+## 项目结构
 
 ```
 trip-planner/
-├── server.js                    # Express 后端入口
-├── .env.example                 # 后端环境变量模板
-├── package.json
-├── docs/screenshots/            # README 截图
-└── client/                      # 前端 (React + Vite)
-    ├── src/
-    │   ├── api/                 # API 请求层（AI、高德）
-    │   ├── components/          # UI 组件
-    │   │   └── modals/          # 弹窗组件
-    │   ├── constants/           # 常量（测验题库等）
-    │   ├── lib/                 # 纯函数（Prompt 构建、地理计算、画像生成）
-    │   ├── map/                 # 地图上下文与类型声明
-    │   ├── store/               # Zustand 状态管理
-    │   ├── App.tsx              # 应用根组件
-    │   └── types.ts             # 全局类型定义
-    ├── .env.example             # 前端环境变量模板
-    └── vite.config.ts           # Vite 配置（开发代理）
+├── server.js              # Express 后端,纯代理 + AI 编排
+├── client/
+│   └── src/
+│       ├── components/    # UI (面板、卡片、模态框)
+│       ├── store/         # Zustand store + persist
+│       ├── lib/           # 纯函数:prompt 构建、地理计算、图片缩放、IndexedDB、AMap 路由封装
+│       ├── api/           # 后端 API 调用层
+│       ├── map/           # AMap 类型声明 + Provider
+│       └── types.ts       # 全局类型(Spot 联合类型在这里)
+└── docs/screenshots/
 ```
 
-## 🧩 技术栈
+## 技术栈
 
-| 层级 | 技术 |
+| 层 | 技术 |
 |:---|:---|
-| **前端框架** | React 19 · TypeScript 5.9 |
-| **构建工具** | Vite 8 |
-| **样式** | Tailwind CSS v4 |
-| **状态管理** | Zustand 5（含 Persist 中间件） |
-| **地图** | 高德地图 JS API 2.0 |
-| **后端** | Node.js · Express |
-| **AI** | DeepSeek / OpenAI 兼容接口 |
+| 前端 | React 19 + TypeScript 5.9 |
+| 构建 | Vite 8 |
+| 样式 | Tailwind CSS v4 (`@theme` token swap) |
+| 状态 | Zustand 5 + persist + version migration |
+| 拖拽 | @dnd-kit (core + sortable) |
+| 二进制 | idb (IndexedDB 包装) |
+| 地图 | 高德 JS API 2.0 (Driving / Walking / Transfer / Riding / Weather / Geocoder / AutoComplete) |
+| 后端 | Node 18 + Express |
+| AI | DeepSeek / OpenAI 兼容,SSE 流式 + 退避重试 |
 
-## 🧠 AI 设计理念
+## 部署
 
-<details>
-<summary>点击展开详细设计说明</summary>
+### 单服务 (Railway / Render)
 
-### 单一上下文原则
+Express 在 `NODE_ENV=production` 时直接托管 `client/dist/`:
 
-每次调用 AI 推荐时，前端会将完整行程信息（城市、景点、每日计划、用户偏好）一次性写入 Prompt。模型将其视为唯一可信上下文，不会臆造未出现的航班号或时刻信息。
+- **Build:** `npm install && cd client && npm install && npm run build && cd ..`
+- **Start:** `NODE_ENV=production npm start`
+- **Env:** `LLM_API_KEY`, `AMAP_KEY`, `VITE_AMAP_KEY` (build 时需要), `CORS_ORIGINS` (你的域名)
 
-### 一键智能同步
+### 前后端分离 (Vercel + Railway)
 
-顶栏「智能同步」依次执行：地图重绘 → 合理性检查 → AI 推荐。减少重复按钮，避免同一上下文被割裂请求。
+- 前端在 Vercel: 项目根设为 `client/`,build `npm run build`,output `dist`,env 写 `VITE_AMAP_KEY`
+- 后端在 Railway: 跑 root 的 Express,env 写 `LLM_API_KEY` / `AMAP_KEY` / `CORS_ORIGINS=https://your-app.vercel.app`
 
-### 被动自动更新
+### 不要 commit
 
-修改行程后防抖约 1.5 秒自动触发 AI 推荐更新，支持 AbortController 取消过时请求，无需手动刷新。
+`.env` 和 `client/.env` 都在 `.gitignore` 里,不要往里面塞真 key。用平台的 env-var UI。
 
-### 结构化输出
-
-AI 返回标准 JSON 格式，包含 `spots`（景点）、`lodging`（住宿）、`other`（建议提示）三类结构化数据。
-
-### POI 查询分流
-
-- `/api/ai/recommend` — 长上下文结构化攻略推荐
-- `/api/ai/poi-query` — 自然语言转高德搜索参数
-
-两条 API 职责不同，互不干扰。
-
-</details>
-
-## 📦 部署 / Deployment
-
-This app has a client (static SPA) + a server (Express proxy for AMap + LLM). A few deployment shapes work:
-
-### Option A: Single-service on Railway / Render (simplest)
-
-The Express server can serve the built client as static files (`npm run build` produces `client/dist/`; `server.js` already serves it when `NODE_ENV=production`). Deploy one service:
-
-- **Build command:** `npm install && cd client && npm install && npm run build && cd ..`
-- **Start command:** `NODE_ENV=production npm start`
-- **Required env vars:** `LLM_API_KEY`, `AMAP_KEY`, `VITE_AMAP_KEY` (for the client build), `CORS_ORIGINS` (your deployed domain)
-
-### Option B: Vercel (frontend) + Railway (backend)
-
-- Deploy `client/` as a Vercel project (`VITE_AMAP_KEY` as env var, build command `npm run build`, output `dist`)
-- Deploy the root as a Railway service for the Express API
-- Set `CORS_ORIGINS` on the backend to your Vercel URL
-
-### Don't commit
-
-Confirm `.env` and `client/.env` stay in `.gitignore`. Never put real AMap / LLM keys in a commit — use the hosting platform's env-var UI.
-
-## 📄 License
+## License
 
 [MIT](LICENSE)
-
----
-
-<div align="center">
-  <sub>Built with ❤️ using React, Vite, and AI</sub>
-</div>
