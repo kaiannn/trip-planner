@@ -4,14 +4,14 @@
 
 # Trip Planner
 
-**地图为核，AI 起步，你来拍板 —— 别人做的旅行工具要么是聊天框假装在规划，要么是表单假装懂你。**
+**地图为核，AI 起步，你来拍板。**
 
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D18-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React_19-20232A?style=flat-square&logo=react&logoColor=61DAFB)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
-[30 秒跑通](#-快速开始) · [它怎么工作](#-工作流) · [功能清单](#-功能) · [部署](#-部署)
+[30 秒跑通](#-快速开始) · [设计思路](#-设计思路) · [功能清单](#-功能) · [部署](#-部署)
 
 </div>
 
@@ -21,20 +21,15 @@
   <img src="docs/screenshots/01-main.png" alt="Trip Planner 主界面" width="900" />
 </p>
 
-## 为什么做这个？
+## 设计思路
 
-市面上的 AI 旅行工具，大概两种路子：
+核心想法：**地图就是界面**。
 
-| 路子 | 问题 |
-|---|---|
-| **聊天框型** | 你和 AI 来回磨了二十轮，终于拿到一份推荐 —— 但你根本看不见地图，不知道这些景点离多远 |
-| **表单型** | 填了一堆日期/人数/偏好，点"生成"，弹出一个静态行程页 —— 想改一个景点？重新填表吧 |
+AI 负责起点 —— 你说"杭州 4 天，喜欢安静的地方"，它给你一批候选景点，高德自动地理编码打到地图上。然后你看着地图拖拖拽拽，把景点安排到每一天，行程是自己调出来的。
 
-这个项目选了第三条路：**地图就是界面**。AI 给你一批候选，你看着地图拖拖拽拽，行程是自己调出来的。
+AI 不替你做决定，只是帮你不从零开始。
 
----
-
-## 工作流
+### 工作流
 
 两步，没有第三步：
 
