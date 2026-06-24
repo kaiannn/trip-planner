@@ -143,6 +143,18 @@ npm run dev
 
 ## 部署
 
+### Docker（推荐）
+
+一行跑起来，不需要装 Node.js：
+
+```bash
+cp .env.example .env
+# 填入 LLM_API_KEY、AMAP_KEY、VITE_AMAP_KEY
+
+docker compose up --build
+# → http://localhost:3001
+```
+
 ### 单服务（Railway / Render）
 
 ```bash
