@@ -6,12 +6,18 @@ export function SettingsModal() {
   const open = useSettingsStore((s) => s.settingsOpen)
   const setOpen = useSettingsStore((s) => s.setSettingsOpen)
   const llmApiKey = useSettingsStore((s) => s.llmApiKey)
+  const llmBaseUrl = useSettingsStore((s) => s.llmBaseUrl)
+  const llmModel = useSettingsStore((s) => s.llmModel)
   const amapKey = useSettingsStore((s) => s.amapKey)
   const setLlmApiKey = useSettingsStore((s) => s.setLlmApiKey)
+  const setLlmBaseUrl = useSettingsStore((s) => s.setLlmBaseUrl)
+  const setLlmModel = useSettingsStore((s) => s.setLlmModel)
   const setAmapKey = useSettingsStore((s) => s.setAmapKey)
   const serverKeyStatus = useSettingsStore((s) => s.serverKeyStatus)
 
   const [localLlm, setLocalLlm] = useState(llmApiKey)
+  const [localBaseUrl, setLocalBaseUrl] = useState(llmBaseUrl)
+  const [localModel, setLocalModel] = useState(llmModel)
   const [localAmap, setLocalAmap] = useState(amapKey)
 
   if (open && localLlm !== llmApiKey && !localLlm) setLocalLlm(llmApiKey)
@@ -24,6 +30,8 @@ export function SettingsModal() {
 
   const handleSave = () => {
     setLlmApiKey(localLlm.trim())
+    setLlmBaseUrl(localBaseUrl.trim())
+    setLlmModel(localModel.trim())
     setAmapKey(localAmap.trim())
     setOpen(false)
   }
@@ -54,6 +62,33 @@ export function SettingsModal() {
                   </span>
                 )}
               </div>
+            </Field>
+          </div>
+
+          <div>
+            <Field label="LLM Base URL">
+              <input
+                type="text"
+                className={inputClass}
+                value={localBaseUrl}
+                onChange={(e) => setLocalBaseUrl(e.target.value)}
+                placeholder="https://api.deepseek.com/v1"
+              />
+            </Field>
+            <p className="mt-1 text-[11px] text-slate-400">
+              DeepSeek / OpenAI / 任意兼容接口地址
+            </p>
+          </div>
+
+          <div>
+            <Field label="LLM 模型">
+              <input
+                type="text"
+                className={inputClass}
+                value={localModel}
+                onChange={(e) => setLocalModel(e.target.value)}
+                placeholder="deepseek-chat"
+              />
             </Field>
           </div>
 

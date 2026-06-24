@@ -1,5 +1,5 @@
 import type { TripContextPayload } from '../lib/aiPrompt'
-import { getUserHeaders } from '../store/settingsStore'
+import { getUserHeaders, useSettingsStore } from '../store/settingsStore'
 import type { AiPoolCandidate, AiSection } from '../types'
 
 let aiAbortController: AbortController | null = null
@@ -11,70 +11,34 @@ export function abortPendingAiRequest() {
   }
 }
 
-/**
- * Sleep for `ms` milliseconds, but abort early if `signal` is aborted.
- * Returns true if the sleep finished, false if it was aborted.
- */
 function abortableSleep(ms: number, signal?: AbortSignal): Promise<boolean> {
   return new Promise((resolve) => {
     if (signal?.aborted) return resolve(false)
     const t = setTimeout(() => resolve(true), ms)
-    signal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(t)
-        resolve(false)
-      },
-      { once: true },
-    )
+    signal?.addEventListener('abort', () => { clearTimeout(t); resolve(false) }, { once: true })
   })
 }
 
-/**
- * Whether the given thrown error looks like a transient failure that
- * justifies a retry. We treat:
- *   - 429 (rate limit), 5xx (server errors) as retryable
- *   - 401/403/400/404 etc. as terminal — retrying won't help
- *   - network errors (TypeError from fetch) as retryable
- *   - aborts as terminal (user moved on)
- */
 function isTransientError(e: unknown): boolean {
   if (e instanceof DOMException && e.name === 'AbortError') return false
-  if (e instanceof TypeError) return true // network/CORS failures
+  if (e instanceof TypeError) return true
   if (e instanceof Error) {
     const m = e.message.match(/HTTP (\d+)/)
-    if (m) {
-      const code = Number(m[1])
-      return code === 429 || code >= 500
-    }
-    // server-emitted "流式推荐失败" / "请求失败" string errors —
-    // treat as transient unless explicitly one of the terminal cases.
+    if (m) { const code = Number(m[1]); return code === 429 || code >= 500 }
     return !/4\d\d/.test(e.message)
   }
   return false
 }
 
 export interface RetryOptions {
-  /** Max attempts INCLUDING the first. So retries = maxAttempts - 1. */
   maxAttempts?: number
-  /** Initial delay in ms; doubled each retry up to maxDelayMs. */
   baseDelayMs?: number
-  /** Cap on per-retry delay. */
   maxDelayMs?: number
-  /** Called before each retry with (attempt, delayMs, lastError). */
   onRetry?: (info: { attempt: number; delayMs: number; error: unknown }) => void
-  /** External abort signal (in addition to the module-level one). */
   signal?: AbortSignal
 }
 
-/**
- * Retry an async operation with exponential backoff + jitter.
- * Retries only on transient errors (network / 429 / 5xx / streaming).
- */
-async function withRetry<T>(
-  op: (attempt: number) => Promise<T>,
-  opts: RetryOptions = {},
-): Promise<T> {
+async function withRetry<T>(op: (attempt: number) => Promise<T>, opts: RetryOptions = {}): Promise<T> {
   const maxAttempts = Math.max(1, opts.maxAttempts ?? 3)
   const baseDelay = opts.baseDelayMs ?? 800
   const maxDelay = opts.maxDelayMs ?? 8000
@@ -85,7 +49,6 @@ async function withRetry<T>(
     } catch (e) {
       lastErr = e
       if (attempt === maxAttempts || !isTransientError(e)) throw e
-      // exponential backoff with ±20% jitter to avoid thundering herd.
       const exp = Math.min(maxDelay, baseDelay * 2 ** (attempt - 1))
       const jitter = exp * (0.8 + Math.random() * 0.4)
       const delayMs = Math.round(jitter)
@@ -94,49 +57,151 @@ async function withRetry<T>(
       if (!ok) throw e
     }
   }
-  // Unreachable, but TS wants it.
   throw lastErr
 }
 
-export async function fetchAiRecommend(
-  prompt: string,
-  retryOpts?: RetryOptions,
-): Promise<AiSection[]> {
-  return withRetry(async () => {
-    abortPendingAiRequest()
-    aiAbortController = new AbortController()
-    const res = await fetch('/api/ai/recommend', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
-      body: JSON.stringify({ prompt }),
-      signal: aiAbortController.signal,
-    })
-    aiAbortController = null
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json()
-    return Array.isArray(data.sections) ? data.sections : []
-  }, retryOpts)
+// ── Direct LLM call (for static/Pages deployment, bypass backend) ──
+
+function getLlmConfig() {
+  const s = useSettingsStore.getState()
+  return {
+    key: s.llmApiKey,
+    baseUrl: (s.llmBaseUrl || 'https://api.deepseek.com/v1').replace(/\/$/, ''),
+    model: s.llmModel || 'deepseek-chat',
+  }
 }
 
+async function callLlmDirect(
+  messages: { role: string; content: string }[],
+  opts: { temperature?: number; stream?: boolean; signal?: AbortSignal } = {},
+): Promise<Response> {
+  const { key, baseUrl, model } = getLlmConfig()
+  if (!key) throw new Error('未配置 LLM API Key，请在设置中填写。')
+  const resp = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model, messages, temperature: opts.temperature ?? 0.4,
+      response_format: { type: 'json_object' },
+      ...(opts.stream ? { stream: true } : {}),
+    }),
+    signal: opts.signal,
+  })
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '')
+    throw new Error(`LLM 请求失败：${resp.status} ${text.slice(0, 200)}`)
+  }
+  return resp
+}
+
+function parseSectionsFromJson(data: unknown): AiSection[] {
+  const obj = data as Record<string, unknown>
+  if (obj && typeof obj === 'object' && 'sections' in obj) return Array.isArray(obj.sections) ? obj.sections : []
+  return []
+}
+
+function parseCandidatesFromJson(data: unknown): AiPoolCandidate[] {
+  const obj = data as Record<string, unknown>
+  if (obj && typeof obj === 'object' && 'candidates' in obj) return Array.isArray(obj.candidates) ? obj.candidates : []
+  return []
+}
+
+async function streamDirect(
+  prompt: string,
+  handlers: StreamAiHandlers,
+  signal: AbortSignal,
+): Promise<AiSection[]> {
+  const resp = await callLlmDirect([{ role: 'user', content: prompt }], { stream: true, signal })
+  const reader = resp.body!.getReader()
+  const decoder = new TextDecoder('utf-8')
+  let buffer = ''
+  let accumulated = ''
+  let lastSectionsCount = 0
+
+  const emitSectionsIfNew = () => {
+    const idx = accumulated.indexOf('"sections"')
+    if (idx < 0) return
+    const openIdx = accumulated.indexOf('[', idx)
+    if (openIdx < 0) return
+    let depth = 0; let endIdx = -1
+    for (let i = openIdx; i < accumulated.length; i++) {
+      if (accumulated[i] === '[') depth++
+      else if (accumulated[i] === ']') { depth--; if (depth === 0) { endIdx = i; break } }
+    }
+    let candidate: string
+    if (endIdx >= 0) { candidate = accumulated.slice(openIdx, endIdx + 1) }
+    else {
+      const lastClose = accumulated.lastIndexOf('}')
+      if (lastClose <= openIdx) return
+      candidate = accumulated.slice(openIdx, lastClose + 1) + ']'
+    }
+    try {
+      const arr = JSON.parse(candidate)
+      if (Array.isArray(arr) && arr.length > lastSectionsCount) { lastSectionsCount = arr.length; handlers.onSections?.(arr) }
+    } catch { /* partial */ }
+  }
+
+  try {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let nl: number
+      while ((nl = buffer.indexOf('\n\n')) >= 0) {
+        const frame = buffer.slice(0, nl); buffer = buffer.slice(nl + 2)
+        for (const line of frame.split('\n')) {
+          if (!line.startsWith('data:')) continue
+          const payload = line.slice(5).trim()
+          if (!payload || payload === '[DONE]') continue
+          try {
+            const obj = JSON.parse(payload)
+            const delta = obj.choices?.[0]?.delta?.content || ''
+            if (delta) { accumulated += delta; handlers.onProgress?.(accumulated.length); emitSectionsIfNew() }
+          } catch { /* skip */ }
+        }
+      }
+    }
+  } finally { aiAbortController = null }
+
+  const parsed = JSON.parse(accumulated || '{}')
+  return parseSectionsFromJson(parsed)
+}
+
+// ── Public API ──
+
 export interface StreamAiHandlers {
-  /** Called every time the server emits more complete sections. */
   onSections?: (sections: AiSection[]) => void
-  /** Called on progress events, before any sections are parseable. */
   onProgress?: (bytes: number) => void
-  /** Called when a transient failure triggers a retry. */
   onRetry?: (info: { attempt: number; delayMs: number; error: unknown }) => void
 }
 
-/**
- * Streaming variant of fetchAiRecommend. Rejects on network/LLM errors,
- * resolves with the final section list on success. Partial section
- * updates arrive via `handlers.onSections` while the request is still
- * in flight, so the UI can render progressively.
- *
- * Auto-retries transient failures with exponential backoff. If a retry
- * happens after partial sections were already streamed, those sections
- * stay on screen — only NEW sections from the retry overwrite them.
- */
+export async function fetchAiRecommend(prompt: string, retryOpts?: RetryOptions): Promise<AiSection[]> {
+  return withRetry(async () => {
+    abortPendingAiRequest()
+    aiAbortController = new AbortController()
+    try {
+      const res = await fetch('/api/ai/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+        body: JSON.stringify({ prompt }),
+        signal: aiAbortController.signal,
+      })
+      aiAbortController = null
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      return Array.isArray(data.sections) ? data.sections : []
+    } catch (e) {
+      if (e instanceof TypeError && getLlmConfig().key) {
+        return await callLlmDirect([{ role: 'user', content: prompt }], { signal: aiAbortController!.signal })
+          .then(async (resp) => { aiAbortController = null; return parseSectionsFromJson(await resp.json()) })
+      }
+      aiAbortController = null
+      throw e
+    }
+  }, retryOpts)
+}
+
 export async function streamAiRecommend(
   prompt: string,
   handlers: StreamAiHandlers = {},
@@ -147,17 +212,23 @@ export async function streamAiRecommend(
     aiAbortController = new AbortController()
     const signal = aiAbortController.signal
 
-    const res = await fetch('/api/ai/recommend/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
-      body: JSON.stringify({ prompt }),
-      signal,
-    })
-
-    if (!res.ok || !res.body) {
+    let res: Response
+    try {
+      res = await fetch('/api/ai/recommend/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+        body: JSON.stringify({ prompt }), signal,
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    } catch (e) {
+      if (e instanceof TypeError && getLlmConfig().key) {
+        return await streamDirect(prompt, handlers, signal)
+      }
       aiAbortController = null
-      throw new Error(`HTTP ${res.status}`)
+      throw e
     }
+
+    if (!res.body) { aiAbortController = null; throw new Error('No response body') }
 
     const reader = res.body.getReader()
     const decoder = new TextDecoder('utf-8')
@@ -171,54 +242,66 @@ export async function streamAiRecommend(
         const { value, done } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
-
-        // SSE frames end with a blank line (two newlines).
         let sep: number
         while ((sep = buffer.indexOf('\n\n')) >= 0) {
-          const frame = buffer.slice(0, sep)
-          buffer = buffer.slice(sep + 2)
+          const frame = buffer.slice(0, sep); buffer = buffer.slice(sep + 2)
           for (const line of frame.split('\n')) {
             if (!line.startsWith('data:')) continue
             const payload = line.slice(5).trim()
             if (!payload) continue
             try {
-              const obj = JSON.parse(payload) as {
-                type: string
-                sections?: AiSection[]
-                bytes?: number
-                error?: string
-              }
-              if (obj.type === 'sections' && Array.isArray(obj.sections)) {
-                handlers.onSections?.(obj.sections)
-              } else if (
-                obj.type === 'progress' &&
-                typeof obj.bytes === 'number'
-              ) {
-                handlers.onProgress?.(obj.bytes)
-              } else if (obj.type === 'done' && Array.isArray(obj.sections)) {
-                finalSections = obj.sections
-              } else if (obj.type === 'error') {
-                serverError = obj.error || '流式推荐失败'
-              }
-            } catch {
-              // skip malformed frame
-            }
+              const obj = JSON.parse(payload) as { type: string; sections?: AiSection[]; bytes?: number; error?: string }
+              if (obj.type === 'sections' && Array.isArray(obj.sections)) handlers.onSections?.(obj.sections)
+              else if (obj.type === 'progress' && typeof obj.bytes === 'number') handlers.onProgress?.(obj.bytes)
+              else if (obj.type === 'done' && Array.isArray(obj.sections)) finalSections = obj.sections
+              else if (obj.type === 'error') serverError = obj.error || '流式推荐失败'
+            } catch { /* skip */ }
           }
         }
       }
-    } finally {
-      aiAbortController = null
-    }
+    } finally { aiAbortController = null }
 
     if (serverError) throw new Error(serverError)
     return finalSections
   }, {
     ...retryOpts,
-    onRetry: (info) => {
-      handlers.onRetry?.(info)
-      retryOpts?.onRetry?.(info)
-    },
+    onRetry: (info) => { handlers.onRetry?.(info); retryOpts?.onRetry?.(info) },
   })
+}
+
+export async function fetchAiSeedPool(
+  description: string, cities: { name: string }[], retryOpts?: RetryOptions,
+): Promise<AiPoolCandidate[]> {
+  const sysPrompt =
+    '你在帮用户搜集「可能感兴趣的候选地点」,用于扔进他们的景点池。' +
+    '候选包括三种 kind:景点(sight)、酒店(hotel)、餐厅(restaurant)。' +
+    '只输出一个 JSON 对象,不要任何解释文字。' +
+    'JSON 结构为 {"candidates":[{"name":"名称","kind":"sight"或"hotel"或"restaurant","cityHint":"城市","address":"地址可选","description":"1-2 句话介绍","price":"酒店价格","link":"餐厅链接可选"}]}。' +
+    '至少给 10 个,至多给 20 个。'
+  const citiesHint = cities.length ? `已选城市：${cities.map((c) => c.name).join('、')}` : ''
+  const userContent = `${citiesHint}\n\n用户的描述：\n${description}`
+
+  return withRetry(async () => {
+    try {
+      const res = await fetch('/api/ai/seed-pool', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+        body: JSON.stringify({ description, cities }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `AI 填充景点池失败 ${res.status}`)
+      return Array.isArray(data.candidates) ? data.candidates : []
+    } catch (e) {
+      if (e instanceof TypeError && getLlmConfig().key) {
+        const resp = await callLlmDirect(
+          [{ role: 'system', content: sysPrompt }, { role: 'user', content: userContent }],
+          { temperature: 0.5 },
+        )
+        return parseCandidatesFromJson(await resp.json())
+      }
+      throw e
+    }
+  }, retryOpts)
 }
 
 export interface PoiQueryResult {
@@ -227,43 +310,42 @@ export interface PoiQueryResult {
   quality: 'normal' | 'high'
 }
 
-/**
- * AI seeds the Pool: pass a natural-language trip description and
- * optionally the user's selected cities; get back candidate spots.
- * The client geocodes these via AMap before adding to the pool.
- */
-export async function fetchAiSeedPool(
-  description: string,
-  cities: { name: string }[],
-  retryOpts?: RetryOptions,
-): Promise<AiPoolCandidate[]> {
-  return withRetry(async () => {
-    const res = await fetch('/api/ai/seed-pool', {
+export async function fetchAiPoiQuery(
+  naturalQuery: string, cityName: string, trip: TripContextPayload,
+): Promise<PoiQueryResult> {
+  const sysPrompt =
+    '你是一个帮用户构建高德地图 POI 搜索参数的助手。' +
+    '只输出 JSON 对象,不要任何解释文本。' +
+    'JSON 结构为：{"keywords":字符串,"types":字符串可选,"quality":"normal"或"high"可选}。'
+  const userParts = [`城市：${cityName}`, `用户的自然语言需求：${naturalQuery}`]
+  if (trip) userParts.push('当前旅行上下文：' + JSON.stringify(trip).slice(0, 2000))
+
+  try {
+    const res = await fetch('/api/ai/poi-query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
-      body: JSON.stringify({ description, cities }),
+      body: JSON.stringify({ naturalQuery, cityName, trip }),
     })
     const data = await res.json()
-    if (!res.ok) throw new Error(data.error || `AI 填充景点池失败 ${res.status}`)
-    return Array.isArray(data.candidates) ? data.candidates : []
-  }, retryOpts)
-}
-
-export async function fetchAiPoiQuery(
-  naturalQuery: string,
-  cityName: string,
-  trip: TripContextPayload,
-): Promise<PoiQueryResult> {
-  const res = await fetch('/api/ai/poi-query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
-    body: JSON.stringify({ naturalQuery, cityName, trip }),
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || `AI 解析失败 ${res.status}`)
-  return {
-    keywords: (data.keywords || '').trim() || '景点',
-    types: (data.types || '').trim(),
-    quality: data.quality === 'high' ? 'high' : 'normal',
+    if (!res.ok) throw new Error(data.error || `AI 解析失败 ${res.status}`)
+    return {
+      keywords: (data.keywords || '').trim() || '景点',
+      types: (data.types || '').trim(),
+      quality: data.quality === 'high' ? 'high' : 'normal',
+    }
+  } catch (e) {
+    if (e instanceof TypeError && getLlmConfig().key) {
+      const resp = await callLlmDirect(
+        [{ role: 'system', content: sysPrompt }, { role: 'user', content: userParts.join('\n\n') }],
+        { temperature: 0.3 },
+      )
+      const parsed = (await resp.json()) as Record<string, unknown>
+      return {
+        keywords: ((parsed.keywords as string) || '').trim() || '景点',
+        types: ((parsed.types as string) || '').trim(),
+        quality: parsed.quality === 'high' ? 'high' : 'normal',
+      }
+    }
+    throw e
   }
 }

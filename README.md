@@ -143,7 +143,15 @@ npm run dev
 
 ## 部署
 
-### Docker（推荐）
+### GitHub Pages（在线体验）
+
+不需要安装任何东西，打开浏览器就能用：
+
+> **https://kaiannn.github.io/trip-planner**
+
+首次打开会弹出设置面板，填入你的 LLM API Key（DeepSeek / OpenAI 兼容）即可。高德地图 Key 在构建时已注入。所有 key 仅保存在浏览器本地。
+
+### Docker（推荐 · 自部署）
 
 一行跑起来，不需要装 Node.js：
 

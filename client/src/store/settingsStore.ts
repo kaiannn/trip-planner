@@ -8,6 +8,8 @@ interface KeyStatus {
 
 interface SettingsState {
   llmApiKey: string
+  llmBaseUrl: string
+  llmModel: string
   amapKey: string
   settingsOpen: boolean
   serverKeyStatus: KeyStatus | null
@@ -15,6 +17,8 @@ interface SettingsState {
 
 interface SettingsActions {
   setLlmApiKey: (v: string) => void
+  setLlmBaseUrl: (v: string) => void
+  setLlmModel: (v: string) => void
   setAmapKey: (v: string) => void
   setSettingsOpen: (v: boolean) => void
   setServerKeyStatus: (s: KeyStatus) => void
@@ -26,11 +30,15 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
   persist(
     (set, get) => ({
       llmApiKey: '',
+      llmBaseUrl: 'https://api.deepseek.com/v1',
+      llmModel: 'deepseek-chat',
       amapKey: '',
       settingsOpen: false,
       serverKeyStatus: null,
 
       setLlmApiKey: (v) => set({ llmApiKey: v }),
+      setLlmBaseUrl: (v) => set({ llmBaseUrl: v }),
+      setLlmModel: (v) => set({ llmModel: v }),
       setAmapKey: (v) => set({ amapKey: v }),
       setSettingsOpen: (v) => set({ settingsOpen: v }),
       setServerKeyStatus: (s) => set({ serverKeyStatus: s }),
@@ -45,14 +53,16 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
             if (!data.amap && !get().amapKey) set({ settingsOpen: true })
           }
         } catch {
-          // ignore
+          // Backend unavailable (e.g. GitHub Pages static mode)
+          // If user hasn't configured any keys, open settings
+          if (!get().llmApiKey) set({ settingsOpen: true })
         }
       },
 
       needsUserKeys: () => {
         const s = get()
         const status = s.serverKeyStatus
-        if (!status) return false
+        if (!status) return !s.llmApiKey
         const llmMissing = !status.llm && !s.llmApiKey
         const amapMissing = !status.amap && !s.amapKey
         return llmMissing || amapMissing
@@ -62,6 +72,8 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       name: 'trip-planner-settings',
       partialize: (state) => ({
         llmApiKey: state.llmApiKey,
+        llmBaseUrl: state.llmBaseUrl,
+        llmModel: state.llmModel,
         amapKey: state.amapKey,
       }),
     },
