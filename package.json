@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "concurrently -n api,web -c blue,magenta \"node server.js\" \"npm run dev --prefix client\"",
     "build": "npm run build --prefix client",
+    "test": "npm run test --prefix client",
     "start": "NODE_ENV=production node server.js"
   },
   "dependencies": {
