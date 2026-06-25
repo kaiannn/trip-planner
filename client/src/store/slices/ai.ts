@@ -3,6 +3,7 @@ import { buildAiPrompt, type TripContextPayload } from '../../lib/aiPrompt'
 import { isDuplicateSpot } from '../../lib/geo'
 import { fetchAiRecommend, streamAiRecommend, fetchAiSeedPool, abortPendingAiRequest } from '../../api/ai'
 import { useLogStore } from '../logStore'
+import { useSettingsStore } from '../settingsStore'
 import type { AiFocus, AiItem, AiSection, DailyPlan } from '../../types'
 import type { SetFn, GetFn } from '../types'
 
@@ -88,7 +89,8 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
         }
         const msg = e instanceof Error ? e.message : String(e)
         set({ aiStatus: `请求失败:${msg}` })
-        useLogStore.getState().pushLog(`AI 推荐请求失败:${msg}。可点击「重试」再试一次。`, 'error')
+        useLogStore.getState().pushLog(`AI 推荐请求失败:${msg}`, 'error')
+        if (msg.includes('LLM API Key')) useSettingsStore.getState().setSettingsOpen(true)
       }
     },
 
@@ -248,6 +250,7 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
         const msg = e instanceof Error ? e.message : String(e)
         set({ aiSeedStatus: `生成失败：${msg}` })
         useLogStore.getState().pushLog(`AI 填充景点池失败：${msg}`, 'error')
+        if (msg.includes('LLM API Key')) useSettingsStore.getState().setSettingsOpen(true)
         return
       }
       if (!candidates.length) { set({ aiSeedStatus: 'AI 没有返回候选。' }); return }
@@ -265,15 +268,19 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
         })
       let added = 0
       let skipped = 0
+      const skippedNames: string[] = []
       for (const c of candidates) {
         const matched = cityList.find((city) => c.cityHint ? city.name.includes(c.cityHint) : false) ?? cityList[0]
         let loc = typeof c.lat === 'number' && typeof c.lng === 'number' ? { lat: c.lat, lng: c.lng } : null
         if (!loc) loc = await resolveOne(c.name, matched.name)
-        if (!loc) { skipped++; continue }
+        if (!loc) { skipped++; skippedNames.push(c.name); continue }
         if (s.addSpot({ kind: c.kind ?? 'sight', cityId: matched.id, name: c.name, location: loc, description: c.description, ...(c.kind === 'hotel' && c.price ? { price: c.price } : {}), ...(c.kind === 'restaurant' && c.link ? { link: c.link } : {}) } as Omit<Spot, 'id'>)) added++
       }
       set({ aiSeedStatus: `已添加 ${added} 个景点${skipped ? `，${skipped} 个因无法定位被跳过` : ''}。` })
       useLogStore.getState().pushLog(`AI 景点池填充完成:+${added} 个${skipped ? `(跳过 ${skipped} 个)` : ''}。`)
+      if (skippedNames.length) {
+        useLogStore.getState().pushLog(`以下景点因高德无法定位被跳过：${skippedNames.join('、')}`, 'warn')
+      }
       try { await get().syncTripIntelligence() } catch (e) {
         useLogStore.getState().pushLog(`AI 建议生成失败:${e instanceof Error ? e.message : e}`, 'warn')
       }

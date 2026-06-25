@@ -65,10 +65,12 @@ export function WeatherChip({
   date?: string
 }) {
   const [snap, setSnap] = useState<WeatherSnapshot | null>(null)
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     if (!city || !date) {
       setSnap(null)
+      setLoaded(false)
       return
     }
     let cancelled = false
@@ -76,13 +78,28 @@ export function WeatherChip({
       if (cancelled) return
       const match = list.find((f) => f.date === date)
       setSnap(match ?? null)
+      setLoaded(true)
     })
     return () => {
       cancelled = true
     }
   }, [city, date])
 
+  if (!city || !date) return null
+
+  if (loaded && !snap) {
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 rounded-md bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-400"
+        title="高德天气仅支持 4 天内预报"
+      >
+        🌐 预报不可用
+      </span>
+    )
+  }
+
   if (!snap) return null
+
   const icon = iconFor(snap.dayweather || snap.nightweather)
   return (
     <span
