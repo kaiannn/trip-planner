@@ -4,6 +4,5 @@ node_modules
 docs/screenshots
 *.md
 .env
-client/.env
 client/node_modules
 client/dist

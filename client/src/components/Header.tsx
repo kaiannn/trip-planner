@@ -28,7 +28,7 @@ export function Header() {
   const tripEnd = useTripStore((s) => s.tripEnd)
   const setTripField = useTripStore((s) => s.setTripField)
   const setSettingsOpen = useSettingsStore((s) => s.setSettingsOpen)
-  const needsUserKeys = useSettingsStore((s) => s.needsUserKeys)
+  const llmApiKey = useSettingsStore((s) => s.llmApiKey)
 
   // Human-readable date range shown next to the title. Empty string if the
   // user hasn't set dates yet; we don't want to render a stray " – " dash.
@@ -90,7 +90,7 @@ export function Header() {
             title="设置"
             aria-label="设置"
           >
-            {needsUserKeys() && (
+            {!llmApiKey && (
               <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-red-500" />
             )}
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">

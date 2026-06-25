@@ -1,37 +1,19 @@
-FROM node:18-alpine AS build
+FROM node:20-alpine AS build
 
 WORKDIR /app
-
-# Install root deps
-COPY package.json package-lock.json ./
-RUN npm ci
-
-# Install client deps
 COPY client/package.json client/package-lock.json ./client/
 RUN npm ci --prefix client
+COPY client/ ./client/
 
-# Copy source
-COPY . .
-
-# Build client (VITE_AMAP_KEY injected at build time)
 ARG VITE_AMAP_KEY=""
+ARG VITE_BASE_PATH="/"
 RUN npm run build --prefix client
 
-# ── Production ──
-FROM node:18-alpine
+# ── Production: nginx ──
+FROM nginx:alpine
 
-WORKDIR /app
+COPY --from=build /app/client/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-
-COPY server.js ./
-COPY server/ ./server/
-COPY --from=build /app/client/dist ./client/dist
-
-ENV NODE_ENV=production
-ENV PORT=3001
-
-EXPOSE 3001
-
-CMD ["node", "server.js"]
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

@@ -5,7 +5,5 @@ services:
       args:
         VITE_AMAP_KEY: ${VITE_AMAP_KEY}
     ports:
-      - "3001:3001"
-    env_file:
-      - .env
+      - "8080:80"
     restart: unless-stopped

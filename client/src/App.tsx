@@ -11,11 +11,9 @@ import { TripWizardModal } from './components/modals/TripWizardModal'
 import { useSettingsStore } from './store/settingsStore'
 
 export default function App() {
-  const fetchServerKeyStatus = useSettingsStore((s) => s.fetchServerKeyStatus)
+  const checkKeys = useSettingsStore((s) => s.checkKeys)
 
-  useEffect(() => {
-    void fetchServerKeyStatus()
-  }, [fetchServerKeyStatus])
+  useEffect(() => { checkKeys() }, [checkKeys])
 
   return (
     <div className="flex min-h-dvh flex-col">
