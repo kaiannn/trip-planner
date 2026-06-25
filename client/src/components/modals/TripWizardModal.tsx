@@ -1,6 +1,6 @@
 import { TRIP_QUIZ_TREE } from '../../constants/quiz'
 import { buildTripProfileFromTags, suggestDestinationsFromProfile } from '../../lib/tripProfile'
-import { useTripStore } from '../../store/tripStore'
+import { useTripStore } from '../../store'
 import { Btn } from '../ui'
 
 export function TripWizardModal() {

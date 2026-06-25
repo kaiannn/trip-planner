@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useTripStore } from '../../store/tripStore'
+import { useTripStore } from '../../store'
+import { useSortedCities } from '../../hooks/useTripData'
 import { Btn, Field } from '../ui'
 import { SpotImage } from '../SpotImage'
 import { PlaceAutoComplete } from '../PlaceAutoComplete'
@@ -29,10 +30,7 @@ export function SpotPoolModal() {
   const fetchAmapPoi = useTripStore((s) => s.fetchAmapPoi)
   const fetchAmapPoiByAI = useTripStore((s) => s.fetchAmapPoiByAI)
 
-  const sortedCities = useMemo(
-    () => cities.slice().sort((a, b) => a.order - b.order),
-    [cities],
-  )
+  const sortedCities = useSortedCities(cities)
 
   const [spotCityId, setSpotCityId] = useState('')
   const [spotName, setSpotName] = useState('')

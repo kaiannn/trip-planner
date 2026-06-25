@@ -1,9 +1,6 @@
 import { create } from 'zustand'
 import type { LogEntry, LogLevel } from '../types'
-
-function uid(prefix: string) {
-  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`
-}
+import { uid } from './utils'
 
 function makeLog(message: string, level: LogLevel): LogEntry {
   return {

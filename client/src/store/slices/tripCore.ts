@@ -10,10 +10,7 @@ import {
   DEMO_TRIP_META,
 } from '../../lib/demoData'
 import type { SetFn, GetFn } from '../types'
-
-function uid(prefix: string) {
-  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`
-}
+import { uid, convertAmapPois } from '../utils'
 
 export interface TripCoreState {
   cities: City[]
@@ -153,16 +150,14 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
           spotOrder: d.spotOrder.filter((sid) => sid !== spotId),
         })),
       }))
-      get().bumpMapRedraw()
-      get().scheduleAiRefresh()
+      get().invalidateTrip()
     },
 
     updateSpot: (spotId, patch) => {
       set((s) => ({
         spots: s.spots.map((x) => (x.id === spotId ? { ...x, ...patch } : x)),
       }))
-      get().bumpMapRedraw()
-      get().scheduleAiRefresh()
+      get().invalidateTrip()
     },
 
     saveDay: ({ dayIndex, cityId, date, lodging, spotOrder, transportMode }) => {
@@ -233,8 +228,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
           return { ...d, spotOrder: [...d.spotOrder, spotId] }
         }),
       }))
-      get().bumpMapRedraw()
-      get().scheduleAiRefresh()
+      get().invalidateTrip()
     },
 
     removeSpotFromDay: (spotId, dayId) => {
@@ -243,8 +237,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
           d.id === dayId ? { ...d, spotOrder: d.spotOrder.filter((id) => id !== spotId) } : d,
         ),
       }))
-      get().bumpMapRedraw()
-      get().scheduleAiRefresh()
+      get().invalidateTrip()
     },
 
     moveSpotBetweenDays: (spotId, fromDayId, toDayId) => {
@@ -256,8 +249,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
           return d
         }),
       }))
-      get().bumpMapRedraw()
-      get().scheduleAiRefresh()
+      get().invalidateTrip()
     },
 
     ensureDaysForDateRange: () => {
@@ -295,7 +287,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
       if (!pending) return
       const { city, pois } = pending
       const existing = get().spots
-      const { spots, added } = convertPoisSync(pois, city.id, existing)
+      const { spots, added } = convertAmapPois(pois, city.id, existing, 'spot_amap_seed')
       set({ spots, autoSeedPending: null })
       useLogStore.getState().pushLog(
         added
@@ -328,35 +320,4 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
       get().bumpMapRedraw()
     },
   }
-}
-
-function convertPoisSync(pois: AmapPoi[], cityId: string, existingSpots: Spot[]): { spots: Spot[]; added: number } {
-  const spots = [...existingSpots]
-  let added = 0
-  for (const p of pois) {
-    const loc = p.location ? String(p.location).split(',') : []
-    const lng = parseFloat(loc[0])
-    const lat = parseFloat(loc[1])
-    if (Number.isNaN(lat) || Number.isNaN(lng)) continue
-    const name = (p.name || '').trim()
-    if (!name) continue
-    if (isDuplicateSpot(spots, cityId, name, lat, lng)) continue
-    const address = (p.address || '').trim()
-    const type = (p.type || '').trim()
-    const rating = Number(p.biz_ext?.rating || p.rating || 0) || undefined
-    const metaParts: string[] = []
-    if (type) metaParts.push(type)
-    if (address) metaParts.push(address)
-    if (rating) metaParts.push(`评分约 ${rating}`)
-    spots.push({
-      kind: 'sight',
-      id: uid('spot_amap_seed'),
-      cityId,
-      name,
-      location: { lat, lng },
-      innerTransport: metaParts.length ? metaParts.join(' · ') : undefined,
-    })
-    added++
-  }
-  return { spots, added }
 }

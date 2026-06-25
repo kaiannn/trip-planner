@@ -19,6 +19,11 @@ export const SPOT_KIND_COLOR: Record<SpotKind, string> = {
   restaurant: '#ea580c',
 }
 
+export const DAY_COLORS = [
+  '#059669', '#2563eb', '#7c3aed', '#c026d3',
+  '#dc2626', '#ea580c', '#ca8a04', '#16a34a',
+]
+
 /**
  * Defensive: existing persisted data may lack a kind (pre-migration).
  * Any unknown/missing value is treated as 'sight'.

@@ -150,49 +150,6 @@ h1, h2 {
   color: #0F172A;
 }
 
-/* ---------- Blob shapes → uniform rounding ----------
- * The Morandi redesign used asymmetric "stone" border-radius values.
- * Flat design prefers consistent, conservative rounding. Re-alias the
- * old blob classes to a uniform 8–12px so existing components stay
- * visually coherent without touching their className lists.
- */
-.stone-1 {
-  border-radius: 12px;
-}
-.stone-2 {
-  border-radius: 12px;
-}
-.stone-3 {
-  border-radius: 10px;
-}
-.stone-button {
-  border-radius: 8px;
-}
-.warm-card {
-  border-radius: 12px;
-}
-
-/* ---------- Shadows: minimal, flat-design friendly ----------
- * Borders do most of the structural work; shadows are a subtle second
- * voice for surfaces that need to lift off the background (modals,
- * floating panels). All shadow tokens remapped to cool-neutral
- * blue-black rather than the previous warm kraft-brown.
- */
-.shadow-stone {
-  box-shadow:
-    0 1px 2px 0 rgba(15, 23, 42, 0.04),
-    0 1px 3px 0 rgba(15, 23, 42, 0.06);
-}
-.shadow-stone-sm {
-  box-shadow:
-    0 1px 2px 0 rgba(15, 23, 42, 0.04);
-}
-.shadow-stone-lg {
-  box-shadow:
-    0 4px 6px -1px rgba(15, 23, 42, 0.06),
-    0 2px 4px -2px rgba(15, 23, 42, 0.04);
-}
-
 /* ---------- AMap label wrapper reset ----------
  * AMap.Marker `label` renders your HTML content inside a wrapper div
  * (.amap-marker-label) that ships with a white background, a 1px border,

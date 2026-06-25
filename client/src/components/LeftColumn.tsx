@@ -1,4 +1,4 @@
-import { useTripStore } from '../store/tripStore'
+import { useTripStore } from '../store'
 import { ArrangePanel } from './ArrangePanel'
 import { CollectPanel } from './CollectPanel'
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useTripStore } from '../store/tripStore'
+import { useTripStore } from '../store'
 import { Btn } from './ui'
 import { SpotContextMenu, useSpotContextMenu } from './SpotContextMenu'
 import {
@@ -7,6 +7,7 @@ import {
   SPOT_KIND_LABEL,
   spotKind,
 } from '../lib/spotKind'
+import { useAssignedSpotIds, useUnassignedSpots } from '../hooks/useTripData'
 import type { SpotKind } from '../types'
 
 type Filter = 'all' | SpotKind
@@ -31,16 +32,8 @@ export function SpotPoolPanel() {
 
   const [filter, setFilter] = useState<Filter>('all')
 
-  const assignedIds = useMemo(() => {
-    const set = new Set<string>()
-    dailyPlans.forEach((d) => d.spotOrder.forEach((id) => set.add(id)))
-    return set
-  }, [dailyPlans])
-
-  const unassigned = useMemo(
-    () => spots.filter((s) => !assignedIds.has(s.id)),
-    [spots, assignedIds],
-  )
+  const assignedIds = useAssignedSpotIds(dailyPlans)
+  const unassigned = useUnassignedSpots(spots, assignedIds)
 
   const counts = useMemo(() => {
     const out = { all: 0, sight: 0, hotel: 0, restaurant: 0 }
@@ -92,7 +85,7 @@ export function SpotPoolPanel() {
   )
 
   return (
-    <section className="warm-card shadow-stone-sm flex min-h-[12rem] flex-1 flex-col overflow-hidden border border-slate-200/80 bg-[#f8f2e4]">
+    <section className="rounded-xl shadow-sm flex min-h-[12rem] flex-1 flex-col overflow-hidden border border-slate-200/80 bg-[#f8f2e4]">
       <header className="flex shrink-0 flex-col gap-1.5 border-b border-slate-100 bg-slate-50/80 px-3 py-2">
         <div className="flex items-center justify-between gap-2">
           <div>

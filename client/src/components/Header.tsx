@@ -1,15 +1,6 @@
-import { useTripStore } from '../store/tripStore'
+import { useTripStore } from '../store'
 import { useSettingsStore } from '../store/settingsStore'
-
-/**
- * Format an ISO date (YYYY-MM-DD) as M/D for the compact header range pill.
- * Falls back to the raw string if it can't be parsed — no throwing.
- */
-function shortDate(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
-  if (!m) return iso
-  return `${Number(m[2])}/${Number(m[3])}`
-}
+import { shortDate } from '../lib/date'
 
 /**
  * Stripped-back top bar. Holds only:
@@ -42,7 +33,7 @@ export function Header() {
           : ''
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-300/50 bg-[#ede3cf]/90 shadow-stone-sm backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-slate-300/50 bg-[#ede3cf]/90 shadow-sm backdrop-blur-xl">
       <div className="mx-auto max-w-[1600px] px-4 py-3 md:px-6">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="font-serif text-xl font-bold tracking-tight text-slate-900 md:text-2xl">

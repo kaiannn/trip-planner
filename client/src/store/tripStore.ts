@@ -1,1 +1,0 @@
-export { useTripStore } from './index'

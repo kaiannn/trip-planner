@@ -10,7 +10,9 @@ import type { AmapPoiActions } from './slices/amapPoi'
 import type { QuizActions } from './slices/quiz'
 
 export type FullState = UiState & TripCoreState & AiState & AmapPoiState & QuizState
-export type FullActions = UiActions & TripCoreActions & AiActions & AmapPoiActions & QuizActions
+export type FullActions = UiActions & TripCoreActions & AiActions & AmapPoiActions & QuizActions & {
+  invalidateTrip: () => void
+}
 export type FullStore = FullState & FullActions
 
 export type SetFn = (

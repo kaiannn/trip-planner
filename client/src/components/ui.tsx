@@ -17,9 +17,9 @@ export function Btn({
         'inline-flex items-center justify-center rounded-md px-3 py-1.5 text-[13px] font-medium transition duration-150',
         'active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
         variant === 'primary' &&
-          'bg-teal-600 text-white shadow-stone-sm hover:bg-teal-700',
+          'bg-teal-600 text-white shadow-sm hover:bg-teal-700',
         variant === 'secondary' &&
-          'border border-slate-200/90 bg-[#f8f2e4] text-slate-800 shadow-stone-sm hover:border-teal-300/80 hover:bg-[#fdfaf3]',
+          'border border-slate-200/90 bg-[#f8f2e4] text-slate-800 shadow-sm hover:border-teal-300/80 hover:bg-[#fdfaf3]',
         variant === 'ghost' && 'text-teal-700 hover:bg-teal-50',
         className,
       )}
@@ -40,7 +40,7 @@ export function Panel({
   return (
     <section
       className={clsx(
-        'warm-card shadow-stone-sm border border-slate-200/70 bg-[#f8f2e4] p-3 transition-shadow hover:shadow-stone',
+        'rounded-xl shadow-sm border border-slate-200/70 bg-[#f8f2e4] p-3 transition-shadow hover:shadow-md',
         className,
       )}
     >

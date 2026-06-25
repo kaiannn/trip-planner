@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useTripStore } from '../store/tripStore'
+import { useTripStore } from '../store'
 import type { Spot } from '../types'
 
 interface MenuItem {

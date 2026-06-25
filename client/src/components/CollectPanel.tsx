@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useMapApi } from '../map/MapContext'
-import { useTripStore } from '../store/tripStore'
+import { useTripStore } from '../store'
+import { useSortedCities } from '../hooks/useTripData'
 import { Btn, Field, Panel, inputClass } from './ui'
 import { AiSeedPanel } from './AiSeedPanel'
 import { SpotPoolPanel } from './SpotPoolPanel'
@@ -32,10 +33,7 @@ export function CollectPanel({ className }: { className?: string }) {
 
   const [cityName, setCityName] = useState('')
 
-  const sortedCities = useMemo(
-    () => cities.slice().sort((a, b) => a.order - b.order),
-    [cities],
-  )
+  const sortedCities = useSortedCities(cities)
 
   const canProceed = cities.length > 0 && spots.length > 0
 
@@ -114,7 +112,7 @@ export function CollectPanel({ className }: { className?: string }) {
       <div className="sticky bottom-0 shrink-0 border-t border-slate-200/60 bg-[#ece3d5]/95 px-0.5 pt-2 pb-0.5 backdrop-blur">
         <Btn
           variant="primary"
-          className={`stone-button shadow-stone w-full justify-center !py-3.5 font-serif text-[15px] font-semibold ${
+          className={`rounded-lg shadow-md w-full justify-center !py-3.5 font-serif text-[15px] font-semibold ${
             canProceed ? '' : 'opacity-50'
           }`}
           onClick={handleDone}

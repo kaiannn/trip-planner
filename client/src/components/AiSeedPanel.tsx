@@ -1,4 +1,4 @@
-import { useTripStore } from '../store/tripStore'
+import { useTripStore } from '../store'
 import { Btn } from './ui'
 
 /**
@@ -46,10 +46,10 @@ export function AiSeedPanel() {
     cities.length === 0 && spots.length === 0 && dailyPlans.length === 0
 
   return (
-    <section className="stone-1 shadow-stone shrink-0 border border-teal-200/60 bg-gradient-to-br from-teal-50 to-[#f1ebdf] p-4">
+    <section className="rounded-xl shadow-md shrink-0 border border-teal-200/60 bg-gradient-to-br from-teal-50 to-[#f1ebdf] p-4">
       <div className="mb-2 flex items-center gap-2">
         <span
-          className={`stone-button flex h-8 w-8 items-center justify-center font-serif text-xs font-bold text-white shadow-stone-sm ${
+          className={`rounded-lg flex h-8 w-8 items-center justify-center font-serif text-xs font-bold text-white shadow-sm ${
             loading ? 'animate-pulse bg-teal-500' : 'bg-teal-600'
           }`}
         >

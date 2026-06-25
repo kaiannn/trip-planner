@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTripStore } from '../../store/tripStore'
+import { useEffect, useRef, useState } from 'react'
+import { useTripStore } from '../../store'
+import { useSortedCities } from '../../hooks/useTripData'
 import { Btn, Field, inputClass } from '../ui'
 import { SpotImage } from '../SpotImage'
 import { resizeImage } from '../../lib/imageResize'
@@ -28,10 +29,7 @@ export function SpotDetailModal() {
   const setPendingMapCoords = useTripStore((s) => s.setPendingMapCoords)
   const pushLog = useTripStore((s) => s.pushLog)
 
-  const sortedCities = useMemo(
-    () => cities.slice().sort((a, b) => a.order - b.order),
-    [cities],
-  )
+  const sortedCities = useSortedCities(cities)
 
   // Editable local state — synced from the spot whenever a different
   // spot is opened. Stored as a "draft Spot" with extra optional fields

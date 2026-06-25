@@ -29,6 +29,10 @@ export const useTripStore = create<StoreWithLogs>()(
       ...createAiActions(set as never, get as never),
       ...createAmapPoiActions(set as never, get as never),
       ...createQuizActions(set as never, get as never),
+      invalidateTrip: () => {
+        get().bumpMapRedraw()
+        get().scheduleAiRefresh()
+      },
       // Delegate to standalone logStore so slices can call pushLog without circular deps
       get logs() { return useLogStore.getState().logs },
       pushLog: (message: string, level?: 'info' | 'warn' | 'error') =>

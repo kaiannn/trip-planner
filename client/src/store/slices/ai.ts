@@ -1,15 +1,12 @@
 import type { Spot } from '../../types'
-import { buildAiPrompt, type TripContextPayload } from '../../lib/aiPrompt'
+import { buildAiPrompt } from '../../lib/aiPrompt'
 import { isDuplicateSpot } from '../../lib/geo'
 import { fetchAiRecommend, streamAiRecommend, fetchAiSeedPool, abortPendingAiRequest } from '../../api/ai'
 import { useLogStore } from '../logStore'
 import { useSettingsStore } from '../settingsStore'
-import type { AiFocus, AiItem, AiSection, DailyPlan } from '../../types'
+import type { AiFocus, AiItem, AiSection } from '../../types'
 import type { SetFn, GetFn } from '../types'
-
-function uid(prefix: string) {
-  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`
-}
+import { uid, collectTripContext } from '../utils'
 
 export interface AiState {
   aiCityId: string
@@ -285,14 +282,5 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
         useLogStore.getState().pushLog(`AI 建议生成失败:${e instanceof Error ? e.message : e}`, 'warn')
       }
     },
-  }
-}
-
-function collectTripContext(get: GetFn): TripContextPayload {
-  const s = get()
-  return {
-    title: s.tripTitle, startDate: s.tripStart, endDate: s.tripEnd,
-    travelExpectation: s.tripExpectation.trim(), tripType: s.tripType,
-    cities: s.cities, spots: s.spots, dailyPlans: s.dailyPlans as unknown as DailyPlan[],
   }
 }

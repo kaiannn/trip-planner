@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useTripStore } from '../store/tripStore'
+import { useTripStore } from '../store'
 import type { AiItem, AiSection } from '../types'
 import { Btn } from './ui'
 

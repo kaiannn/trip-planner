@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useTripStore } from '../../store/tripStore'
+import { useTripStore } from '../../store'
 import { Btn, Field } from '../ui'
 import { WeatherChip } from '../WeatherChip'
 

@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useTripStore } from '../store/tripStore'
+import { useTripStore } from '../store'
 
 export function LogPanel({ className }: { className?: string }) {
   const logs = useTripStore((s) => s.logs)
