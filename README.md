@@ -55,11 +55,7 @@
 - **持久化** — localStorage，刷新不丢
 - **Demo 数据** — 内置杭州 3 天示例
 
-### 已知问题
-
-- 没填 LLM key 时 AI 功能不工作，手动功能正常
-- 天气超过 4 天没数据
-- AI 偶尔给出高德找不到的地名，会自动跳过
+已知问题见 [Issues](https://github.com/kaiannn/trip-planner/issues)。
 
 ## 快速开始
 
