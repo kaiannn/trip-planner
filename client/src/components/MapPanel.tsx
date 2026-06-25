@@ -245,7 +245,7 @@ export function MapPanel({
         const isPool = !assignedSpotIds.has(spot.id)
         const dayColor = spotColorById.get(spot.id)
         const isFocused = spot.id === mapFocusSpotId
-        let labelBg = spot.kind === 'hotel' ? SPOT_KIND_COLOR.hotel : spot.kind === 'restaurant' ? SPOT_KIND_COLOR.restaurant : dayColor ?? SPOT_KIND_COLOR.sight
+        const labelBg = spot.kind === 'hotel' ? SPOT_KIND_COLOR.hotel : spot.kind === 'restaurant' ? SPOT_KIND_COLOR.restaurant : dayColor ?? SPOT_KIND_COLOR.sight
         const labelShadow = isFocused ? '0 0 0 2px #fff, 0 0 0 5px rgba(13,148,136,0.75), 0 4px 14px rgba(13,148,136,0.45)' : '0 1px 3px rgba(0,0,0,0.25)'
         const icon = SPOT_KIND_ICON[spot.kind]
         const marker = new AMap.Marker({
