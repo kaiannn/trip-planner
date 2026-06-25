@@ -12,7 +12,7 @@ export function MapPanel({
   sidebar,
   className,
 }: {
-  sidebar: React.ReactNode
+  sidebar?: React.ReactNode
   className?: string
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -166,7 +166,7 @@ export function MapPanel({
   return (
     <MapContext.Provider value={api}>
       <div className={clsx('flex min-h-0 flex-1 gap-4', className)}>
-        <div className="w-[min(380px,38vw)] shrink-0">{sidebar}</div>
+        {sidebar && <div className="w-[min(380px,38vw)] shrink-0">{sidebar}</div>}
         <div className="rounded-xl shadow-lg relative flex min-h-0 min-h-[min(360px,calc(100dvh-12rem))] flex-1 flex-col overflow-hidden border-[6px] border-[#ddd0b4] bg-[#f8f2e4]">
           <MapLegend items={legend} onResetView={showResetButton ? handleResetView : undefined} />
           <div className="relative flex min-h-0 flex-1 flex-col">

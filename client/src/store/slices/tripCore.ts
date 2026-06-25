@@ -21,7 +21,6 @@ export interface TripCoreState {
   tripEnd: string
   tripExpectation: string
   tripType: string
-  appMode: 'collect' | 'arrange'
   autoSeedPending: { city: City; pois: AmapPoi[] } | null
 }
 
@@ -30,7 +29,6 @@ export interface TripCoreActions {
     field: keyof Pick<TripCoreState, 'tripTitle' | 'tripStart' | 'tripEnd' | 'tripExpectation' | 'tripType'>,
     value: string,
   ) => void
-  setAppMode: (v: 'collect' | 'arrange') => void
   addCity: (name: string, lat?: number, lng?: number) => City
   updateCityLocation: (cityId: string, lat: number, lng: number) => void
   moveCity: (cityId: string, delta: number) => void
@@ -68,14 +66,12 @@ export const initialTripCoreState: TripCoreState = {
   tripEnd: '',
   tripExpectation: '',
   tripType: '',
-  appMode: 'collect',
   autoSeedPending: null,
 }
 
 export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
   return {
     setTripField: (field, value) => set({ [field]: value } as Partial<TripCoreState>),
-    setAppMode: (v) => set({ appMode: v }),
 
     addCity: (name, lat, lng) => {
       const city: City = {
