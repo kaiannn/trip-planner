@@ -1,35 +1,37 @@
 import { useCallback, useRef, useState } from 'react'
 
 export function useResizable({
-  initialWidth,
-  initialHeight,
+  containerRef,
   minWidth = 300,
   minHeight = 200,
 }: {
-  initialWidth?: number
-  initialHeight?: number
+  containerRef: React.RefObject<HTMLElement | null>
   minWidth?: number
   minHeight?: number
 }) {
-  const [width, setWidth] = useState(initialWidth)
-  const [height, setHeight] = useState(initialHeight)
+  const [size, setSize] = useState<{ width?: number; height?: number }>({})
   const startRef = useRef({ x: 0, y: 0, w: 0, h: 0 })
 
   const onResizeStart = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
+      const el = containerRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
       startRef.current = {
         x: e.clientX,
         y: e.clientY,
-        w: width ?? 0,
-        h: height ?? 0,
+        w: rect.width,
+        h: rect.height,
       }
 
       const onMouseMove = (ev: MouseEvent) => {
         const dx = ev.clientX - startRef.current.x
         const dy = ev.clientY - startRef.current.y
-        setWidth(Math.max(minWidth, startRef.current.w + dx))
-        setHeight(Math.max(minHeight, startRef.current.h + dy))
+        setSize({
+          width: Math.max(minWidth, startRef.current.w + dx),
+          height: Math.max(minHeight, startRef.current.h + dy),
+        })
       }
 
       const onMouseUp = () => {
@@ -40,8 +42,8 @@ export function useResizable({
       document.addEventListener('mousemove', onMouseMove)
       document.addEventListener('mouseup', onMouseUp)
     },
-    [width, height, minWidth, minHeight],
+    [containerRef, minWidth, minHeight],
   )
 
-  return { width, height, onResizeStart }
+  return { size, onResizeStart }
 }
