@@ -20,7 +20,7 @@ export function DayTimeline() {
   if (sortedDays.length === 0) return null
 
   return (
-    <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-t border-slate-200 bg-white/90 px-3 py-2 backdrop-blur">
+    <div className="sticky bottom-0 z-10 flex items-center gap-2 overflow-x-auto border-t border-slate-200 bg-white/95 px-3 py-2 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] backdrop-blur">
       {sortedDays.map((day, idx) => {
         const color = DAY_COLORS[idx % DAY_COLORS.length]
         const isActive = mapFocusDayId === day.id
