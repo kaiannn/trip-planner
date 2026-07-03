@@ -133,7 +133,8 @@ export async function streamAiRecommend(
     const signal = aiAbortController.signal
 
     const resp = await callLlm([{ role: 'user', content: prompt }], { stream: true, signal })
-    const reader = resp.body!.getReader()
+    if (!resp.body) throw new Error('LLM 流式响应无 body')
+    const reader = resp.body.getReader()
     const decoder = new TextDecoder('utf-8')
     let buffer = ''
     let accumulated = ''
@@ -164,7 +165,6 @@ export async function streamAiRecommend(
     }
 
     try {
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         const { value, done } = await reader.read()
         if (done) break

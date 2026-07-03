@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTripStore } from '../../store'
 import { SPOT_KIND_ICON, spotKind } from '../../lib/spotKind'
 import { useAssignedSpotIds, useUnassignedSpots } from '../../hooks/useTripData'
@@ -17,6 +17,30 @@ export function FloatingSpotPool() {
 
   const [collapsed, setCollapsed] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return
+    e.preventDefault()
+    const startX = e.clientX
+    const startY = e.clientY
+    const el = panelRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const parentRect = el.parentElement?.getBoundingClientRect() ?? { left: 0, top: 0 }
+    const origX = rect.left - parentRect.left
+    const origY = rect.top - parentRect.top
+    const onMove = (ev: MouseEvent) => {
+      setPosition({ x: origX + (ev.clientX - startX), y: origY + (ev.clientY - startY) })
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
 
   const assignedIds = useAssignedSpotIds(dailyPlans)
   const unassigned = useUnassignedSpots(spots, assignedIds)
@@ -42,7 +66,16 @@ export function FloatingSpotPool() {
     cities.find((c) => c.id === cityId)?.name ?? ''
 
   return (
-    <div className="absolute right-3 top-3 z-10 w-64 rounded-xl border border-slate-200 bg-white/95 shadow-lg backdrop-blur">
+    <div
+      ref={panelRef}
+      onMouseDown={handleDragStart}
+      className="absolute z-10 w-64 cursor-move rounded-xl border border-slate-200 bg-white/95 shadow-lg backdrop-blur"
+      style={{
+        left: position?.x ?? 12,
+        top: position?.y ?? 12,
+        right: position ? undefined : 12,
+      }}
+    >
       <header
         className="flex cursor-pointer items-center justify-between gap-2 border-b border-slate-100 px-3 py-2"
         onClick={() => setCollapsed(!collapsed)}

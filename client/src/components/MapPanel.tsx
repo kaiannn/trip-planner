@@ -117,7 +117,6 @@ export function MapPanel({
     const spot = useTripStore.getState().spots.find((s) => s.id === mapFocusSpotId)
     if (!spot) return
     try { requestAnimationFrame(() => { map.panTo([spot.location.lng, spot.location.lat]); map.setZoom(13) }) } catch { /* ignore */ }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapFocusSpotId])
 
   useEffect(() => {
@@ -128,7 +127,6 @@ export function MapPanel({
     if (!day || !day.spotOrder.length) return
     const dayMarkers = spotMarkersRef.current.filter((_, i) => { const spotId = state.spots[i]?.id; return spotId ? day.spotOrder.includes(spotId) : false })
     if (dayMarkers.length) { try { map.setFitView(dayMarkers) } catch { /* ignore */ } }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapFocusDayId])
 
   const geocodeCity = useCallback(
@@ -163,15 +161,78 @@ export function MapPanel({
 
   const showResetButton = !!(mapFocusSpotId || mapFocusDayId)
 
+  const [mapHeight, setMapHeight] = useState<number | null>(null)
+  const [mapWidth, setMapWidth] = useState<number | null>(null)
+  const [mapPosition, setMapPosition] = useState<{ x: number; y: number } | null>(null)
+  const resizeRef = useRef<HTMLDivElement>(null)
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement
+    if (target.closest('.amap-container') || target.closest('button')) return
+    e.preventDefault()
+    const startX = e.clientX
+    const startY = e.clientY
+    const el = resizeRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const parentRect = el.parentElement?.getBoundingClientRect() ?? { left: 0, top: 0 }
+    const origX = rect.left - parentRect.left
+    const origY = rect.top - parentRect.top
+    const onMove = (ev: MouseEvent) => {
+      setMapPosition({ x: origX + (ev.clientX - startX), y: origY + (ev.clientY - startY) })
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const startY = e.clientY
+    const startHeight = resizeRef.current?.offsetHeight ?? 600
+    const startWidth = resizeRef.current?.offsetWidth ?? 800
+    const onMove = (ev: MouseEvent) => {
+      setMapHeight(Math.max(200, startHeight + (ev.clientY - startY)))
+      setMapWidth(Math.max(300, startWidth + (ev.clientX - startX)))
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
+
   return (
     <MapContext.Provider value={api}>
       <div className={clsx('flex min-h-0 flex-1 gap-4', className)}>
         {sidebar && <div className="w-[min(380px,38vw)] shrink-0">{sidebar}</div>}
-        <div className="rounded-xl shadow-lg relative flex min-h-0 min-h-[min(360px,calc(100dvh-12rem))] flex-1 flex-col overflow-hidden border-[6px] border-[#ddd0b4] bg-[#f8f2e4]">
+        <div
+          ref={resizeRef}
+          onMouseDown={handleDragStart}
+          className="group relative flex min-h-[200px] cursor-move flex-col overflow-hidden rounded-xl border-[6px] border-[#ddd0b4] bg-[#f8f2e4] shadow-lg"
+          style={{
+            height: mapHeight ?? 'calc(100% - 80px)',
+            width: mapWidth ?? '100%',
+            left: mapPosition?.x ?? 0,
+            top: mapPosition?.y ?? 0,
+          }}
+        >
           <MapLegend items={legend} onResetView={showResetButton ? handleResetView : undefined} />
-          <div className="relative flex min-h-0 flex-1 flex-col">
+          <div className="relative flex flex-1 flex-col">
             {mapLoadError && <MapErrorOverlay error={mapLoadError} />}
             <div ref={containerRef} className="min-h-0 w-full flex-1" />
+          </div>
+          <div
+            onMouseDown={handleResizeStart}
+            className="absolute bottom-0 right-0 z-10 flex h-5 w-5 cursor-se-resize items-end justify-end rounded-br-lg p-0.5 opacity-0 transition group-hover:opacity-100"
+          >
+            <div className="h-3 w-3 rounded-br border-b-2 border-r-2 border-slate-400" />
           </div>
         </div>
       </div>
