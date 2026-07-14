@@ -55,6 +55,7 @@ export interface TripCoreActions {
   confirmAutoSeed: () => void
   cancelAutoSeed: () => void
   loadDemoData: () => void
+  clearTrip: () => void
 }
 
 export const initialTripCoreState: TripCoreState = {
@@ -313,6 +314,24 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
         mapFocusSpotId: null,
       } as Partial<TripCoreState>)
       useLogStore.getState().pushLog('已加载示例数据：杭州 3 天，含 8 个景点（3 个已分配到 Day 1）。')
+      get().bumpMapRedraw()
+    },
+
+    clearTrip: () => {
+      set({
+        cities: [],
+        spots: [],
+        dailyPlans: [],
+        tripTitle: '',
+        tripStart: '',
+        tripEnd: '',
+        tripExpectation: '',
+        tripType: '',
+        autoSeedPending: null,
+        mapFocusDayId: null,
+        mapFocusSpotId: null,
+      } as Partial<TripCoreState>)
+      useLogStore.getState().pushLog('已清空行程数据。')
       get().bumpMapRedraw()
     },
   }

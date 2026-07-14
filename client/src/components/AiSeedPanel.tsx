@@ -27,6 +27,7 @@ export function AiSeedPanel() {
   const spots = useTripStore((s) => s.spots)
   const dailyPlans = useTripStore((s) => s.dailyPlans)
   const loadDemoData = useTripStore((s) => s.loadDemoData)
+  const clearTrip = useTripStore((s) => s.clearTrip)
   const resetQuiz = useTripStore((s) => s.resetQuiz)
   const setTripWizardOpen = useTripStore((s) => s.setTripWizardOpen)
 
@@ -132,6 +133,20 @@ export function AiSeedPanel() {
             title="一键加载杭州 3 天示例行程"
           >
             📦 加载示例数据
+          </button>
+        </div>
+      )}
+      {/* Clear trip — visible when there's data */}
+      {!isEmpty && (
+        <div className="mt-3 flex justify-end border-t border-teal-200/60 pt-3">
+          <button
+            type="button"
+            className="text-[11px] font-medium text-slate-400 transition hover:text-red-500"
+            onClick={() => {
+              if (window.confirm('确定清空所有行程数据？此操作不可撤销。')) clearTrip()
+            }}
+          >
+            清空行程
           </button>
         </div>
       )}
