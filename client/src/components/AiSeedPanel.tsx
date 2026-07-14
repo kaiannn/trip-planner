@@ -1,3 +1,4 @@
+import { useCallback, useRef, useState } from 'react'
 import { useTripStore } from '../store'
 import { Btn } from './ui'
 
@@ -31,6 +32,32 @@ export function AiSeedPanel() {
   const resetQuiz = useTripStore((s) => s.resetQuiz)
   const setTripWizardOpen = useTripStore((s) => s.setTripWizardOpen)
 
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
+  const [collapsed, setCollapsed] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('textarea') || (e.target as HTMLElement).closest('select')) return
+    e.preventDefault()
+    const startX = e.clientX
+    const startY = e.clientY
+    const el = panelRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const parentRect = el.parentElement?.getBoundingClientRect() ?? { left: 0, top: 0 }
+    const origX = rect.left - parentRect.left
+    const origY = rect.top - parentRect.top
+    const onMove = (ev: MouseEvent) => {
+      setPosition({ x: origX + (ev.clientX - startX), y: origY + (ev.clientY - startY) })
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
+
   const loading =
     aiSeedStatus.includes('正在') || aiSeedStatus.includes('定位坐标')
   // Surface a manual retry CTA when the last attempt ended in error.
@@ -47,24 +74,40 @@ export function AiSeedPanel() {
     cities.length === 0 && spots.length === 0 && dailyPlans.length === 0
 
   return (
-    <section className="rounded-xl shadow-md shrink-0 border border-teal-200/60 bg-gradient-to-br from-teal-50 to-[#f1ebdf] p-4">
-      <div className="mb-2 flex items-center gap-2">
-        <span
-          className={`rounded-lg flex h-8 w-8 items-center justify-center font-serif text-xs font-bold text-white shadow-sm ${
-            loading ? 'animate-pulse bg-teal-500' : 'bg-teal-600'
-          }`}
-        >
-          AI
-        </span>
-        <div>
-          <div className="font-serif text-[15px] font-semibold text-slate-800">
-            告诉我你想去哪
-          </div>
-          <div className="text-[11px] text-slate-600">
-            候选景点会进下面的池子 · AI 建议会一并生成
+    <section
+      ref={panelRef}
+      onMouseDown={handleDragStart}
+      className="absolute left-3 top-3 z-10 w-80 cursor-move rounded-xl border border-teal-200/60 bg-gradient-to-br from-teal-50 to-[#f1ebdf] shadow-lg backdrop-blur"
+      style={{
+        left: position?.x ?? 12,
+        top: position?.y ?? 12,
+      }}
+    >
+      <header
+        className="flex cursor-pointer items-center justify-between gap-2 border-b border-teal-200/60 px-4 py-3"
+        onClick={() => setCollapsed(!collapsed)}
+      >
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded-lg flex h-8 w-8 items-center justify-center font-serif text-xs font-bold text-white shadow-sm ${
+              loading ? 'animate-pulse bg-teal-500' : 'bg-teal-600'
+            }`}
+          >
+            AI
+          </span>
+          <div>
+            <div className="font-serif text-[15px] font-semibold text-slate-800">
+              告诉我你想去哪
+            </div>
+            <div className="text-[11px] text-slate-600">
+              候选景点会进下面的池子 · AI 建议会一并生成
+            </div>
           </div>
         </div>
-      </div>
+        <span className="text-slate-400">{collapsed ? '▼' : '▲'}</span>
+      </header>
+      {!collapsed && (
+        <div className="p-4">
       <textarea
         rows={3}
         className="w-full resize-y rounded-[18px_8px_16px_10px] border border-slate-200 bg-[#fdfaf3] px-3 py-2 text-[13px] leading-relaxed text-slate-800 shadow-inner placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100"
@@ -149,6 +192,8 @@ export function AiSeedPanel() {
             清空行程
           </button>
         </div>
+      )}
+      </div>
       )}
     </section>
   )
