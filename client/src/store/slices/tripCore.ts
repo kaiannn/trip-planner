@@ -21,7 +21,6 @@ export interface TripCoreState {
   tripEnd: string
   tripExpectation: string
   tripType: string
-  appMode: 'collect' | 'arrange'
   autoSeedPending: { city: City; pois: AmapPoi[] } | null
 }
 
@@ -30,7 +29,6 @@ export interface TripCoreActions {
     field: keyof Pick<TripCoreState, 'tripTitle' | 'tripStart' | 'tripEnd' | 'tripExpectation' | 'tripType'>,
     value: string,
   ) => void
-  setAppMode: (v: 'collect' | 'arrange') => void
   addCity: (name: string, lat?: number, lng?: number) => City
   updateCityLocation: (cityId: string, lat: number, lng: number) => void
   moveCity: (cityId: string, delta: number) => void
@@ -57,6 +55,7 @@ export interface TripCoreActions {
   confirmAutoSeed: () => void
   cancelAutoSeed: () => void
   loadDemoData: () => void
+  clearTrip: () => void
 }
 
 export const initialTripCoreState: TripCoreState = {
@@ -68,14 +67,12 @@ export const initialTripCoreState: TripCoreState = {
   tripEnd: '',
   tripExpectation: '',
   tripType: '',
-  appMode: 'collect',
   autoSeedPending: null,
 }
 
 export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
   return {
     setTripField: (field, value) => set({ [field]: value } as Partial<TripCoreState>),
-    setAppMode: (v) => set({ appMode: v }),
 
     addCity: (name, lat, lng) => {
       const city: City = {
@@ -317,6 +314,24 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
         mapFocusSpotId: null,
       } as Partial<TripCoreState>)
       useLogStore.getState().pushLog('已加载示例数据：杭州 3 天，含 8 个景点（3 个已分配到 Day 1）。')
+      get().bumpMapRedraw()
+    },
+
+    clearTrip: () => {
+      set({
+        cities: [],
+        spots: [],
+        dailyPlans: [],
+        tripTitle: '',
+        tripStart: '',
+        tripEnd: '',
+        tripExpectation: '',
+        tripType: '',
+        autoSeedPending: null,
+        mapFocusDayId: null,
+        mapFocusSpotId: null,
+      } as Partial<TripCoreState>)
+      useLogStore.getState().pushLog('已清空行程数据。')
       get().bumpMapRedraw()
     },
   }

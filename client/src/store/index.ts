@@ -66,7 +66,6 @@ export const useTripStore = create<StoreWithLogs>()(
         tripType: state.tripType,
         aiCityId: state.aiCityId,
         aiBudget: state.aiBudget,
-        appMode: state.appMode,
       }),
     },
   ),

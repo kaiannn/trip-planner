@@ -1,3 +1,4 @@
+import { useCallback, useRef } from 'react'
 import { useTripStore } from '../store'
 import { useSettingsStore } from '../store/settingsStore'
 import { shortDate } from '../lib/date'
@@ -12,14 +13,36 @@ import { shortDate } from '../lib/date'
  * Everything AI-related (expectation textarea, trip type, sync, quiz,
  * demo data) lives in AiSeedPanel now. The previous header had 5 buttons
  * crammed into a form row; this one is a single line.
+ *
+ * Easter egg: triple-click "旅程攻略" to load demo data.
  */
 export function Header() {
   const tripTitle = useTripStore((s) => s.tripTitle)
   const tripStart = useTripStore((s) => s.tripStart)
   const tripEnd = useTripStore((s) => s.tripEnd)
   const setTripField = useTripStore((s) => s.setTripField)
+  const loadDemoData = useTripStore((s) => s.loadDemoData)
   const setSettingsOpen = useSettingsStore((s) => s.setSettingsOpen)
   const llmApiKey = useSettingsStore((s) => s.llmApiKey)
+
+  // Easter egg: triple-click the title to load demo data
+  const clickCountRef = useRef(0)
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleTitleClick = useCallback(() => {
+    clickCountRef.current += 1
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
+
+    if (clickCountRef.current >= 3) {
+      clickCountRef.current = 0
+      loadDemoData()
+      return
+    }
+
+    clickTimerRef.current = setTimeout(() => {
+      clickCountRef.current = 0
+    }, 800)
+  }, [loadDemoData])
 
   // Human-readable date range shown next to the title. Empty string if the
   // user hasn't set dates yet; we don't want to render a stray " – " dash.
@@ -36,7 +59,11 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b border-slate-300/50 bg-[#ede3cf]/90 shadow-sm backdrop-blur-xl">
       <div className="mx-auto max-w-[1600px] px-4 py-3 md:px-6">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="font-serif text-xl font-bold tracking-tight text-slate-900 md:text-2xl">
+          <h1
+            className="cursor-default select-none font-serif text-xl font-bold tracking-tight text-slate-900 md:text-2xl"
+            onClick={handleTitleClick}
+            title="连续点击三次加载示例数据"
+          >
             旅程攻略
           </h1>
           <input

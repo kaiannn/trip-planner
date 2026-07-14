@@ -49,8 +49,10 @@ export function SpotDetailModal() {
   const [draft, setDraft] = useState<DraftSpot | null>(() =>
     spot ? (spot as DraftSpot) : null,
   )
+  // 只在切换不同 spot 时重置草稿，不响应 spot 对象内部属性变化
   useEffect(() => {
     setDraft(spot ? (spot as DraftSpot) : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spot?.id])
 
   if (!spot || !draft) return null
