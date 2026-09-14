@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { useTripStore } from '../store'
 import { useSettingsStore } from '../store/settingsStore'
+import { useCyclingStore } from '../cycling/store'
 import { shortDate } from '../lib/date'
 
 /**
@@ -24,6 +25,7 @@ export function Header() {
   const loadDemoData = useTripStore((s) => s.loadDemoData)
   const setSettingsOpen = useSettingsStore((s) => s.setSettingsOpen)
   const llmApiKey = useSettingsStore((s) => s.llmApiKey)
+  const setCyclingOpen = useCyclingStore((s) => s.setOpen)
 
   // Easter egg: triple-click the title to load demo data
   const clickCountRef = useRef(0)
@@ -99,6 +101,15 @@ export function Header() {
               aria-label="结束日期"
             />
           </label>
+          <button
+            type="button"
+            className="ml-auto flex items-center gap-1 rounded-full border border-teal-200/80 bg-teal-50/80 px-2.5 py-1 text-[12px] font-medium text-teal-800 transition hover:bg-teal-100 hover:text-teal-900"
+            onClick={() => setCyclingOpen(true)}
+            title="骑行路书"
+          >
+            <span aria-hidden>🚴</span>
+            <span>路书</span>
+          </button>
           {/* Settings — small icon-only affordance. Red dot indicates the
               user needs to fill in API keys before AI features will work. */}
           <button

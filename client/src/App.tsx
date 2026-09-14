@@ -7,6 +7,7 @@ import { SpotDetailModal } from './components/modals/SpotDetailModal'
 import { SpotPoolModal } from './components/modals/SpotPoolModal'
 import { TripWizardModal } from './components/modals/TripWizardModal'
 import { useSettingsStore } from './store/settingsStore'
+import { CyclingRouteBookModal } from './cycling/CyclingRouteBookModal'
 
 export default function App() {
   const checkKeys = useSettingsStore((s) => s.checkKeys)
@@ -24,6 +25,7 @@ export default function App() {
       <TripWizardModal />
       <SpotDetailModal />
       <SettingsModal />
+      <CyclingRouteBookModal />
     </div>
   )
 }
