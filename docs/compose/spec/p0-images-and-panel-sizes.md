@@ -2,8 +2,8 @@
 feature: p0-images-and-panel-sizes
 status: delivered
 updated: 2026-08-22
-branch: main
-commits: (uncommitted working tree — user has not asked to commit)
+branch: feat/map-panels-photos-and-day-branches
+commits: 1d94b19..e84a83e
 ---
 
 # P0: POI 图片 + 浮层默认尺寸
