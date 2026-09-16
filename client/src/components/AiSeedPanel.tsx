@@ -1,23 +1,14 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useTripStore } from '../store'
 import { Btn } from './ui'
 
 /**
- * "Seed my spot pool with AI": a prominent, persistent block at the
- * top of the right rail. User describes their trip in natural
- * language, AI returns candidate spots, each is geocoded via AMap
- * and dropped into the pool.
- *
- * This panel also serves as the home for trip-wide AI context that
- * used to live in the Header form row:
- *   - trip type (family / couple / etc.)
- *   - "目的地小测" quiz entry point
- *   - demo data shortcut (only shown when there's nothing else)
- *
- * Rationale: the header needs to stay clean; everything AI-related
- * belongs in one panel that's the obvious "talk to the AI" surface.
+ * AI recommend dialog — Header button → centered modal
+ * (same chrome family as Settings / Spot detail, not map overlay).
  */
-export function AiSeedPanel() {
+export function AiSeedModal() {
+  const aiSeedOpen = useTripStore((s) => s.aiSeedOpen)
+  const setAiSeedOpen = useTripStore((s) => s.setAiSeedOpen)
   const aiSeedInput = useTripStore((s) => s.aiSeedInput)
   const aiSeedStatus = useTripStore((s) => s.aiSeedStatus)
   const tripType = useTripStore((s) => s.tripType)
@@ -32,169 +23,148 @@ export function AiSeedPanel() {
   const resetQuiz = useTripStore((s) => s.resetQuiz)
   const setTripWizardOpen = useTripStore((s) => s.setTripWizardOpen)
 
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
-  const [collapsed, setCollapsed] = useState(false)
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  const handleDragStart = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('textarea') || (e.target as HTMLElement).closest('select')) return
-    e.preventDefault()
-    const startX = e.clientX
-    const startY = e.clientY
-    const el = panelRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const parentRect = el.parentElement?.getBoundingClientRect() ?? { left: 0, top: 0 }
-    const origX = rect.left - parentRect.left
-    const origY = rect.top - parentRect.top
-    const onMove = (ev: MouseEvent) => {
-      setPosition({ x: origX + (ev.clientX - startX), y: origY + (ev.clientY - startY) })
-    }
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }, [])
-
   const loading =
     aiSeedStatus.includes('正在') || aiSeedStatus.includes('定位坐标')
-  // Surface a manual retry CTA when the last attempt ended in error.
   const failed =
     !loading &&
     (aiSeedStatus.startsWith('生成失败') ||
       aiSeedStatus.includes('请求失败') ||
-      aiSeedStatus.startsWith('第 ') /* "第 N 次失败:..." retry trace */)
+      aiSeedStatus.startsWith('第 '))
 
-  // "Empty" = user hasn't actually started a trip yet. Show the demo-data
-  // shortcut and the quiz link only in this state so they don't clutter
-  // the panel once the trip is underway.
   const isEmpty =
     cities.length === 0 && spots.length === 0 && dailyPlans.length === 0
 
+  const close = useCallback(() => setAiSeedOpen(false), [setAiSeedOpen])
+
+  useEffect(() => {
+    if (!aiSeedOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [aiSeedOpen, close])
+
+  const handleRun = useCallback(() => {
+    if (!loading) void seedPoolFromAi()
+  }, [loading, seedPoolFromAi])
+
+  if (!aiSeedOpen) return null
+
   return (
-    <section
-      ref={panelRef}
-      onMouseDown={handleDragStart}
-      className="absolute left-3 top-3 z-10 w-80 cursor-move rounded-xl border border-teal-200/60 bg-gradient-to-br from-teal-50 to-[#f1ebdf] shadow-lg backdrop-blur"
-      style={{
-        left: position?.x ?? 12,
-        top: position?.y ?? 12,
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) close()
       }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="AI 推荐景点"
     >
-      <header
-        className="flex cursor-pointer items-center justify-between gap-2 border-b border-teal-200/60 px-4 py-3"
-        onClick={() => setCollapsed(!collapsed)}
-      >
-        <div className="flex items-center gap-2">
-          <span
-            className={`rounded-lg flex h-8 w-8 items-center justify-center font-serif text-xs font-bold text-white shadow-sm ${
-              loading ? 'animate-pulse bg-teal-500' : 'bg-teal-600'
-            }`}
-          >
-            AI
-          </span>
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <header className="flex items-baseline justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3">
           <div>
-            <div className="font-serif text-[15px] font-semibold text-slate-800">
-              告诉我你想去哪
-            </div>
-            <div className="text-[11px] text-slate-600">
-              候选景点会进下面的池子 · AI 建议会一并生成
-            </div>
+            <h2 className="text-base font-semibold text-slate-900">AI 推荐景点</h2>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              描述行程 → 生成候选 → 进入景点池
+            </p>
           </div>
-        </div>
-        <span className="text-slate-400">{collapsed ? '▼' : '▲'}</span>
-      </header>
-      {!collapsed && (
-        <div className="p-4">
-      <textarea
-        rows={3}
-        className="w-full resize-y rounded-[18px_8px_16px_10px] border border-slate-200 bg-[#fdfaf3] px-3 py-2 text-[13px] leading-relaxed text-slate-800 shadow-inner placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100"
-        placeholder="例:杭州 4 天,和伴侣,喜欢安静的地方、好吃的小馆子,想看一个标志性景点。"
-        value={aiSeedInput}
-        onChange={(e) => setAiSeedInput(e.target.value)}
-        disabled={loading}
-      />
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Btn
-          variant="primary"
-          className={loading ? 'opacity-60' : ''}
-          onClick={() => {
-            if (!loading) void seedPoolFromAi()
-          }}
-        >
-          {loading ? '生成中…' : failed ? '重试' : '帮我填景点池'}
-        </Btn>
-        <select
-          className="rounded-md border border-slate-200/90 bg-[#fdfaf3] px-2.5 py-1.5 text-[12px] text-slate-700 shadow-inner transition focus:border-teal-500/60 focus:outline-none focus:ring-2 focus:ring-teal-500/15"
-          value={tripType}
-          onChange={(e) => setTripField('tripType', e.target.value)}
-          aria-label="出行类型"
-          title="出行类型"
-        >
-          <option value="">出行类型…</option>
-          <option value="亲子">亲子</option>
-          <option value="情侣">情侣</option>
-          <option value="朋友">朋友结伴</option>
-          <option value="独自">独自旅行</option>
-          <option value="家庭">家庭出行</option>
-        </select>
-        {failed && (
-          <span className="text-[10px] text-red-600">⚠ 上次失败</span>
-        )}
-        {aiSeedStatus && (
-          <span
-            className={`ml-auto truncate text-[11px] ${
-              failed ? 'text-red-700' : 'text-slate-600'
-            }`}
+          <button
+            type="button"
+            onClick={close}
+            className="rounded p-1 text-slate-400 transition hover:bg-slate-200/60 hover:text-slate-700"
+            aria-label="关闭"
           >
-            {aiSeedStatus}
-          </span>
-        )}
+            ✕
+          </button>
+        </header>
+
+        <div className="space-y-4 p-5">
+          <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-600">
+            行程描述
+            <textarea
+              rows={4}
+              className="w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100"
+              placeholder="例：杭州 4 天，和伴侣，喜欢安静的地方、好吃的小馆子。"
+              value={aiSeedInput}
+              onChange={(e) => setAiSeedInput(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleRun()
+              }}
+              disabled={loading}
+            />
+          </label>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Btn
+              variant="primary"
+              className={loading ? 'opacity-60' : ''}
+              onClick={handleRun}
+            >
+              {loading ? '生成中…' : failed ? '重试' : '生成候选'}
+            </Btn>
+            <select
+              className="rounded-md border border-slate-200 px-2.5 py-1.5 text-[12px] text-slate-700 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100"
+              value={tripType}
+              onChange={(e) => setTripField('tripType', e.target.value)}
+              aria-label="出行类型"
+            >
+              <option value="">出行类型…</option>
+              <option value="亲子">亲子</option>
+              <option value="情侣">情侣</option>
+              <option value="朋友">朋友结伴</option>
+              <option value="独自">独自旅行</option>
+              <option value="家庭">家庭出行</option>
+            </select>
+            {failed && <span className="text-[11px] text-red-600">上次失败</span>}
+            <span className="ml-auto text-[11px] text-slate-400">Ctrl/⌘ + Enter</span>
+          </div>
+
+          {aiSeedStatus && (
+            <p className={`text-[12px] ${failed ? 'text-red-600' : 'text-slate-500'}`}>
+              {aiSeedStatus}
+            </p>
+          )}
+
+          {isEmpty && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pt-3 text-[12px] text-slate-600">
+              <span className="text-slate-500">还没想好？</span>
+              <button
+                type="button"
+                className="font-medium text-teal-700 hover:underline"
+                onClick={() => {
+                  resetQuiz()
+                  setTripWizardOpen(true)
+                  close()
+                }}
+              >
+                目的地小测
+              </button>
+              <button
+                type="button"
+                className="font-medium text-teal-700 hover:underline"
+                onClick={() => loadDemoData()}
+              >
+                加载示例数据
+              </button>
+            </div>
+          )}
+
+          {!isEmpty && (
+            <div className="flex justify-end border-t border-slate-100 pt-2">
+              <button
+                type="button"
+                className="text-[11px] font-medium text-slate-400 hover:text-red-500"
+                onClick={() => {
+                  if (window.confirm('确定清空所有行程数据？此操作不可撤销。')) clearTrip()
+                }}
+              >
+                清空行程
+              </button>
+            </div>
+          )}
+        </div>
       </div>
-      {/* First-run shortcuts — visible only when the trip is truly empty.
-          Keeping them here (and not in the header) avoids permanent
-          button clutter while still giving a new user an obvious path in. */}
-      {isEmpty && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-teal-200/60 pt-3 text-[11px] text-slate-600">
-          <span className="text-slate-500">还没想好?</span>
-          <button
-            type="button"
-            className="font-medium text-teal-700 transition hover:text-teal-800 hover:underline"
-            onClick={() => {
-              resetQuiz()
-              setTripWizardOpen(true)
-            }}
-          >
-            试试目的地小测 →
-          </button>
-          <button
-            type="button"
-            className="font-medium text-teal-700 transition hover:text-teal-800 hover:underline"
-            onClick={() => loadDemoData()}
-            title="一键加载杭州 3 天示例行程"
-          >
-            📦 加载示例数据
-          </button>
-        </div>
-      )}
-      {/* Clear trip — visible when there's data */}
-      {!isEmpty && (
-        <div className="mt-3 flex justify-end border-t border-teal-200/60 pt-3">
-          <button
-            type="button"
-            className="text-[11px] font-medium text-slate-400 transition hover:text-red-500"
-            onClick={() => {
-              if (window.confirm('确定清空所有行程数据？此操作不可撤销。')) clearTrip()
-            }}
-          >
-            清空行程
-          </button>
-        </div>
-      )}
-      </div>
-      )}
-    </section>
+    </div>
   )
 }

@@ -100,6 +100,7 @@ export function SpotImg({
       alt={alt}
       loading="lazy"
       decoding="async"
+      referrerPolicy="no-referrer"
       className={clsx('w-full object-cover', aspectClassName, className)}
       onError={() => setFailed(true)}
     />

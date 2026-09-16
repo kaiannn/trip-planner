@@ -1,4 +1,4 @@
-import type { City, DailyPlan, Spot, TransportMode } from '../../types'
+import type { City, DailyPlan, DayBranch, Spot, TransportMode } from '../../types'
 import type { AmapPoi } from '../../api/amap'
 import { isDuplicateSpot } from '../../lib/geo'
 import { deleteImageBlob } from '../../lib/imageStorage'
@@ -10,7 +10,7 @@ import {
   DEMO_TRIP_META,
 } from '../../lib/demoData'
 import type { SetFn, GetFn } from '../types'
-import { uid, convertAmapPois } from '../utils'
+import { uid, convertAmapPois, enrichSpotPhotos } from '../utils'
 
 export interface TripCoreState {
   cities: City[]
@@ -51,6 +51,13 @@ export interface TripCoreActions {
   assignSpotToDay: (spotId: string, dayId: string) => void
   removeSpotFromDay: (spotId: string, dayId: string) => void
   moveSpotBetweenDays: (spotId: string, fromDayId: string, toDayId: string) => void
+  /** Decision tree: add a condition branch (clones current active path as start). */
+  addDayBranch: (dayId: string, when: string, label: string) => string | null
+  removeDayBranch: (dayId: string, branchId: string) => void
+  setActiveBranch: (dayId: string, branchId: string | null) => void
+  renameDayBranch: (dayId: string, branchId: string, label: string) => void
+  /** Append a spot onto the day's active path (default or selected branch). */
+  assignSpotToActivePath: (spotId: string, dayId: string) => void
   ensureDaysForDateRange: () => number
   confirmAutoSeed: () => void
   cancelAutoSeed: () => void
@@ -145,6 +152,9 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
         dailyPlans: s.dailyPlans.map((d) => ({
           ...d,
           spotOrder: d.spotOrder.filter((sid) => sid !== spotId),
+          dayBranches: d.dayBranches
+            ?.map((b) => ({ ...b, spotOrder: b.spotOrder.filter((id) => id !== spotId) }))
+            .filter((b) => b.spotOrder.length > 0),
         })),
       }))
       get().invalidateTrip()
@@ -161,7 +171,17 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
       const plans = [...get().dailyPlans]
       const existingIndex = plans.findIndex((d) => d.dayIndex === dayIndex)
       if (existingIndex >= 0) {
-        plans[existingIndex] = { ...plans[existingIndex], cityId, date, lodging, spotOrder, transportMode }
+        plans[existingIndex] = {
+          ...plans[existingIndex],
+          cityId,
+          date,
+          lodging,
+          spotOrder,
+          transportMode,
+          dayBranches: plans[existingIndex].dayBranches,
+          activeBranchId: plans[existingIndex].activeBranchId,
+          segmentModes: plans[existingIndex].segmentModes,
+        }
         useLogStore.getState().pushLog(`已更新第 ${dayIndex} 天行程`)
       } else {
         plans.push({ id: uid('day'), dayIndex, cityId, date, lodging, spotOrder, transportMode })
@@ -178,7 +198,17 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
 
     setDaySpotOrder: (dayId, spotOrder) => {
       set((s) => ({
-        dailyPlans: s.dailyPlans.map((d) => (d.id === dayId ? { ...d, spotOrder } : d)),
+        dailyPlans: s.dailyPlans.map((d) => {
+          if (d.id !== dayId) return d
+          const branchId = d.activeBranchId
+          if (!branchId) return { ...d, spotOrder }
+          return {
+            ...d,
+            dayBranches: d.dayBranches?.map((b) =>
+              b.id === branchId ? { ...b, spotOrder } : b,
+            ),
+          }
+        }),
       }))
       get().scheduleAiRefresh()
     },
@@ -228,10 +258,108 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
       get().invalidateTrip()
     },
 
+    assignSpotToActivePath: (spotId, dayId) => {
+      set((s) => ({
+        dailyPlans: s.dailyPlans.map((d) => {
+          if (d.id !== dayId) return d
+          const branchId = d.activeBranchId
+          if (!branchId) {
+            if (d.spotOrder.includes(spotId)) return d
+            return { ...d, spotOrder: [...d.spotOrder, spotId] }
+          }
+          const branches = (d.dayBranches ?? []).map((b) => {
+            if (b.id !== branchId) return b
+            if (b.spotOrder.includes(spotId)) return b
+            return { ...b, spotOrder: [...b.spotOrder, spotId] }
+          })
+          return { ...d, dayBranches: branches }
+        }),
+      }))
+      get().invalidateTrip()
+    },
+
     removeSpotFromDay: (spotId, dayId) => {
       set((s) => ({
+        dailyPlans: s.dailyPlans.map((d) => {
+          if (d.id !== dayId) return d
+          return {
+            ...d,
+            spotOrder: d.spotOrder.filter((id) => id !== spotId),
+            dayBranches: d.dayBranches?.map((b) => ({
+              ...b,
+              spotOrder: b.spotOrder.filter((id) => id !== spotId),
+            })),
+          }
+        }),
+      }))
+      get().invalidateTrip()
+    },
+
+    addDayBranch: (dayId, when, label) => {
+      const day = get().dailyPlans.find((d) => d.id === dayId)
+      if (!day) return null
+      const branchId = uid('branch')
+      const seed = day.activeBranchId
+        ? day.dayBranches?.find((b) => b.id === day.activeBranchId)?.spotOrder ?? day.spotOrder
+        : day.spotOrder
+      const branch: DayBranch = {
+        id: branchId,
+        when,
+        label: label.trim() || when,
+        spotOrder: [...seed],
+      }
+      set((s) => ({
         dailyPlans: s.dailyPlans.map((d) =>
-          d.id === dayId ? { ...d, spotOrder: d.spotOrder.filter((id) => id !== spotId) } : d,
+          d.id === dayId
+            ? {
+                ...d,
+                dayBranches: [...(d.dayBranches ?? []), branch],
+                activeBranchId: branchId,
+              }
+            : d,
+        ),
+      }))
+      useLogStore.getState().pushLog(`已添加状况「${branch.label}」，可修改该分支计划`)
+      get().invalidateTrip()
+      return branchId
+    },
+
+    removeDayBranch: (dayId, branchId) => {
+      set((s) => ({
+        dailyPlans: s.dailyPlans.map((d) => {
+          if (d.id !== dayId) return d
+          const branches = (d.dayBranches ?? []).filter((b) => b.id !== branchId)
+          return {
+            ...d,
+            dayBranches: branches.length ? branches : undefined,
+            activeBranchId:
+              d.activeBranchId === branchId ? null : d.activeBranchId,
+          }
+        }),
+      }))
+      get().invalidateTrip()
+    },
+
+    setActiveBranch: (dayId, branchId) => {
+      set((s) => ({
+        dailyPlans: s.dailyPlans.map((d) =>
+          d.id === dayId ? { ...d, activeBranchId: branchId } : d,
+        ),
+      }))
+      get().invalidateTrip()
+    },
+
+    renameDayBranch: (dayId, branchId, label) => {
+      set((s) => ({
+        dailyPlans: s.dailyPlans.map((d) =>
+          d.id === dayId
+            ? {
+                ...d,
+                dayBranches: d.dayBranches?.map((b) =>
+                  b.id === branchId ? { ...b, label: label.trim() || b.label } : b,
+                ),
+              }
+            : d,
         ),
       }))
       get().invalidateTrip()
@@ -292,6 +420,9 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
           : '自动加入高德景点时未发现新的候选点（可能都已存在）。',
       )
       get().scheduleAiRefresh()
+      void enrichSpotPhotos(spots, set, get).then((n) => {
+        if (n) useLogStore.getState().pushLog(`已为 ${n} 个景点补全图片。`)
+      })
     },
 
     cancelAutoSeed: () => {

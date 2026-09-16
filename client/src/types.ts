@@ -27,6 +27,8 @@ interface BaseSpot {
    * present, the blob takes precedence.
    */
   imageBlobId?: string
+  /** AMap POI id — used to backfill photos via place/detail. */
+  amapId?: string
   description?: string
 }
 
@@ -65,12 +67,25 @@ export interface DailyLodging {
 /** Which routing mode to use between two consecutive stops within a day. */
 export type TransportMode = 'driving' | 'walking' | 'transit' | 'riding'
 
+/**
+ * One branch of a day-level decision tree ("状况 → 另一套计划").
+ * `when` is a free key: rain | clear | custom slug.
+ */
+export interface DayBranch {
+  id: string
+  when: string
+  label: string
+  /** Full alternate path for this condition — not slot-level patches. */
+  spotOrder: string[]
+}
+
 export interface DailyPlan {
   id: string
   dayIndex: number
   date?: string
   cityId: string
   lodging: DailyLodging
+  /** Default plan (no condition). */
   spotOrder: string[]
   transportMode?: string
   /**
@@ -80,6 +95,13 @@ export interface DailyPlan {
    * can still have different modes on each day's leg.
    */
   segmentModes?: Record<string, TransportMode>
+  /**
+   * Decision-tree branches. Absent / empty → plain linear day (no tree UI).
+   * Editing a branch writes to that branch's spotOrder, not the default.
+   */
+  dayBranches?: DayBranch[]
+  /** Active branch id; null/undefined = default spotOrder. */
+  activeBranchId?: string | null
 }
 
 export interface AiItem {

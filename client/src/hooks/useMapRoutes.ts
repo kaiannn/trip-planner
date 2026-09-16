@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { distanceInMeters } from '../lib/geo'
+import { resolveDaySpotOrder, inactiveBranchSpotIds, allPlannedSpotIds, branchGhostLegs } from '../lib/resolveDayPath'
 import {
   DAY_COLORS,
   SPOT_KIND_COLOR,
@@ -162,7 +163,8 @@ export function useMapRoutes(
       daysToDraw.forEach((day, idx) => {
         const coords: number[][] = []
         const orderedSpots: Spot[] = []
-        day.spotOrder.forEach((sid) => { const spot = spots.find((s) => s.id === sid); if (spot?.location) { coords.push([spot.location.lng, spot.location.lat]); orderedSpots.push(spot) } })
+        const activeOrder = resolveDaySpotOrder(day)
+        activeOrder.forEach((sid) => { const spot = spots.find((s) => s.id === sid); if (spot?.location) { coords.push([spot.location.lng, spot.location.lat]); orderedSpots.push(spot) } })
         const color = DAY_COLORS[idx % DAY_COLORS.length]
         const cityName = cities.find((c) => c.id === day.cityId)?.name
         if (coords.length >= 2) {
@@ -172,7 +174,12 @@ export function useMapRoutes(
             const a = orderedSpots[i].location; const b = orderedSpots[i + 1].location
             const fromId = orderedSpots[i].id; const toId = orderedSpots[i + 1].id
             const segKey = `${fromId}|${toId}`
-            const mode: TransportMode = day.segmentModes?.[segKey] ?? 'driving'
+            // segmentModes are keyed by primary ids; remap when an alt swapped in
+            const primA = day.spotOrder[i]
+            const primB = day.spotOrder[i + 1]
+            const mode: TransportMode = day.segmentModes?.[segKey]
+              ?? day.segmentModes?.[`${primA}|${primB}`]
+              ?? 'driving'
             fetchSegment(mode, a, b, { city: cityName })
               .then((seg) => {
                 if (drawSeqRef.current !== mySeq) return
@@ -198,8 +205,34 @@ export function useMapRoutes(
               })
           }
         }
-        if (coords.length >= 1) { const city = cities.find((c) => c.id === day.cityId); leg.push({ key: day.id, color, label: `第${day.dayIndex}天${city ? ` · ${city.name}` : ''}` }) }
+        // Ghost legs for non-active branches (decision tree branches)
+        if (focusDayId === day.id && day.dayBranches?.length) {
+          const locMap = new Map<string, { lat: number; lng: number }>()
+          spots.forEach((sp) => locMap.set(sp.id, sp.location))
+          branchGhostLegs(day, locMap).forEach(({ from, to }) => {
+            const line = new AMap.Polyline({
+              path: [[from.lng, from.lat], [to.lng, to.lat]],
+              strokeColor: color,
+              strokeWeight: 2,
+              strokeOpacity: 0.4,
+              strokeStyle: 'dashed',
+            })
+            map.add(line); routePolylinesRef.current.push(line)
+          })
+        }
+        if (coords.length >= 1) {
+          const city = cities.find((c) => c.id === day.cityId)
+          const nBr = day.dayBranches?.length ?? 0
+          leg.push({
+            key: day.id,
+            color,
+            label: `第${day.dayIndex}天${city ? ` · ${city.name}` : ''}${nBr ? ` · ${nBr}个状况` : ''}`,
+          })
+        }
       })
+      if (dailyPlans.some((d) => d.dayBranches?.length)) {
+        leg.push({ key: 'branch', color: '#94a3b8', label: '状况分支', dashed: true })
+      }
 
       setLegend(leg)
 
@@ -214,19 +247,31 @@ export function useMapRoutes(
       spotMarkersRef.current.forEach((m) => m.setMap(null)); spotMarkersRef.current = []
       const assignedSpotIds = new Set<string>()
       const spotColorById = new Map<string, string>()
-      daysToDraw.forEach((day, idx) => { const color = DAY_COLORS[idx % DAY_COLORS.length]; day.spotOrder.forEach((sid) => { assignedSpotIds.add(sid); spotColorById.set(sid, color) }) })
+      const altOnlyIds = new Set<string>()
+      daysToDraw.forEach((day, idx) => {
+        const color = DAY_COLORS[idx % DAY_COLORS.length]
+        allPlannedSpotIds(day).forEach((sid) => {
+          assignedSpotIds.add(sid)
+          if (!spotColorById.has(sid)) spotColorById.set(sid, color)
+        })
+        inactiveBranchSpotIds(day).forEach((sid) => altOnlyIds.add(sid))
+      })
 
       spots.forEach((spot) => {
         const isPool = !assignedSpotIds.has(spot.id)
+        const isAltGhost = altOnlyIds.has(spot.id)
         const dayColor = spotColorById.get(spot.id)
         const isFocused = spot.id === mapFocusSpotId
         const labelBg = spot.kind === 'hotel' ? SPOT_KIND_COLOR.hotel : spot.kind === 'restaurant' ? SPOT_KIND_COLOR.restaurant : dayColor ?? SPOT_KIND_COLOR.sight
         const labelShadow = isFocused ? '0 0 0 2px #fff, 0 0 0 5px rgba(13,148,136,0.75), 0 4px 14px rgba(13,148,136,0.45)' : '0 1px 3px rgba(0,0,0,0.25)'
         const icon = SPOT_KIND_ICON[spot.kind]
+        const labelStyle = isAltGhost
+          ? `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:#94a3b8;color:#fff;font-size:10px;font-weight:600;opacity:0.85;box-shadow:${labelShadow}">${icon} ${spot.name} ·备选</span>`
+          : `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:${labelBg};color:#fff;font-size:10px;font-weight:600;box-shadow:${labelShadow}">${icon} ${spot.name}</span>`
         const marker = new AMap.Marker({
           position: [spot.location.lng, spot.location.lat], title: spot.name, map,
-          zIndex: isFocused ? 200 : isPool ? 50 : 100,
-          label: { content: `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:${labelBg};color:#fff;font-size:10px;font-weight:600;box-shadow:${labelShadow}">${icon} ${spot.name}</span>`, direction: 'top' },
+          zIndex: isFocused ? 200 : isAltGhost || isPool ? 50 : 100,
+          label: { content: labelStyle, direction: 'top' },
         })
         marker.on('click', () => {
           const content = document.createElement('div'); content.className = 'amap-info-content'

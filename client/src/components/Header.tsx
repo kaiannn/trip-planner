@@ -5,15 +5,8 @@ import { useCyclingStore } from '../cycling/store'
 import { shortDate } from '../lib/date'
 
 /**
- * Stripped-back top bar. Holds only:
- *   - app heading (旅程攻略)
- *   - inline trip title input
- *   - date range pill (click left half = start, right half = end)
- *   - settings gear (single icon, no text)
- *
- * Everything AI-related (expectation textarea, trip type, sync, quiz,
- * demo data) lives in AiSeedPanel now. The previous header had 5 buttons
- * crammed into a form row; this one is a single line.
+ * Top bar: title, trip name, dates, then text buttons for AI / 骑行路书
+ * (same chrome), and settings gear.
  *
  * Easter egg: triple-click "旅程攻略" to load demo data.
  */
@@ -23,6 +16,7 @@ export function Header() {
   const tripEnd = useTripStore((s) => s.tripEnd)
   const setTripField = useTripStore((s) => s.setTripField)
   const loadDemoData = useTripStore((s) => s.loadDemoData)
+  const setAiSeedOpen = useTripStore((s) => s.setAiSeedOpen)
   const setSettingsOpen = useSettingsStore((s) => s.setSettingsOpen)
   const llmApiKey = useSettingsStore((s) => s.llmApiKey)
   const setCyclingOpen = useCyclingStore((s) => s.setOpen)
@@ -101,31 +95,38 @@ export function Header() {
               aria-label="结束日期"
             />
           </label>
-          <button
-            type="button"
-            className="ml-auto flex items-center gap-1 rounded-full border border-teal-200/80 bg-teal-50/80 px-2.5 py-1 text-[12px] font-medium text-teal-800 transition hover:bg-teal-100 hover:text-teal-900"
-            onClick={() => setCyclingOpen(true)}
-            title="骑行路书"
-          >
-            <span aria-hidden>🚴</span>
-            <span>路书</span>
-          </button>
-          {/* Settings — small icon-only affordance. Red dot indicates the
-              user needs to fill in API keys before AI features will work. */}
-          <button
-            type="button"
-            className="relative ml-auto flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-200/60 hover:text-slate-800"
-            onClick={() => setSettingsOpen(true)}
-            title="设置"
-            aria-label="设置"
-          >
-            {!llmApiKey && (
-              <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-red-500" />
-            )}
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-              <path fillRule="evenodd" d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1-1.187.447l-1.598-.54a6.993 6.993 0 0 1-1.929 1.115l-.33 1.652a1 1 0 0 1-.98.804H8.82a1 1 0 0 1-.98-.804l-.331-1.652a6.993 6.993 0 0 1-1.929-1.115l-1.598.54a1 1 0 0 1-1.186-.447l-1.18-2.044a1 1 0 0 1 .205-1.251l1.267-1.114a7.05 7.05 0 0 1 0-2.227L1.821 7.773a1 1 0 0 1-.206-1.25l1.18-2.045a1 1 0 0 1 1.187-.447l1.598.54A6.992 6.992 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" />
-            </svg>
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md border border-slate-200/80 bg-white/60 px-2.5 py-1 text-[12px] font-medium text-slate-700 transition hover:border-sky-300 hover:bg-white hover:text-sky-800"
+              onClick={() => setAiSeedOpen(true)}
+              title="用 AI 生成候选景点"
+            >
+              AI 推荐
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-slate-200/80 bg-white/60 px-2.5 py-1 text-[12px] font-medium text-slate-700 transition hover:border-sky-300 hover:bg-white hover:text-sky-800"
+              onClick={() => setCyclingOpen(true)}
+              title="打开骑行路书"
+            >
+              骑行路书
+            </button>
+            <button
+              type="button"
+              className="relative flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-200/60 hover:text-slate-800"
+              onClick={() => setSettingsOpen(true)}
+              title="设置"
+              aria-label="设置"
+            >
+              {!llmApiKey && (
+                <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-red-500" />
+              )}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path fillRule="evenodd" d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1-1.187.447l-1.598-.54a6.993 6.993 0 0 1-1.929 1.115l-.33 1.652a1 1 0 0 1-.98.804H8.82a1 1 0 0 1-.98-.804l-.331-1.652a6.993 6.993 0 0 1-1.929-1.115l-1.598.54a1 1 0 0 1-1.186-.447l-1.18-2.044a1 1 0 0 1 .205-1.251l1.267-1.114a7.05 7.05 0 0 1 0-2.227L1.821 7.773a1 1 0 0 1-.206-1.25l1.18-2.045a1 1 0 0 1 1.187-.447l1.598.54A6.992 6.992 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </header>
