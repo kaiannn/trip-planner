@@ -33,6 +33,7 @@ export function createAmapPoiActions(set: SetFn, get: GetFn): AmapPoiActions {
     setAmapCityName: (name) => set({ amapCityName: name }),
 
     fetchAmapPoi: async () => {
+      get().markUserTrip()
       const s = get()
       const cityName = s.amapCityName.trim()
       if (!cityName) { useLogStore.getState().pushLog('请先选择城市再获取高德 POI 推荐。', 'error'); return }
@@ -56,6 +57,7 @@ export function createAmapPoiActions(set: SetFn, get: GetFn): AmapPoiActions {
     },
 
     fetchAmapPoiByAI: async () => {
+      get().markUserTrip()
       const s = get()
       const cityName = s.amapCityName.trim()
       if (!cityName) { useLogStore.getState().pushLog('请先选择城市。', 'error'); return }
