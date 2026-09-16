@@ -11,6 +11,11 @@ import {
 } from '../../lib/demoData'
 import type { SetFn, GetFn } from '../types'
 import { uid, convertAmapPois, enrichSpotPhotos } from '../utils'
+import { fetchAmapPoiList, pickPoiPhoto } from '../../api/amap'
+import { useSettingsStore } from '../settingsStore'
+
+/** empty = no trip; demo = sample loaded; user = real edits (or non-demo data). */
+export type TripDataSource = 'empty' | 'demo' | 'user'
 
 export interface TripCoreState {
   cities: City[]
@@ -22,6 +27,7 @@ export interface TripCoreState {
   tripExpectation: string
   tripType: string
   autoSeedPending: { city: City; pois: AmapPoi[] } | null
+  dataSource: TripDataSource
 }
 
 export interface TripCoreActions {
@@ -63,6 +69,8 @@ export interface TripCoreActions {
   cancelAutoSeed: () => void
   loadDemoData: () => void
   clearTrip: () => void
+  /** Promote demo → user when the traveler edits the trip. */
+  markUserTrip: () => void
 }
 
 export const initialTripCoreState: TripCoreState = {
@@ -75,13 +83,54 @@ export const initialTripCoreState: TripCoreState = {
   tripExpectation: '',
   tripType: '',
   autoSeedPending: null,
+  dataSource: 'empty',
+}
+
+/** Demo spots ship without photos — look them up by name when a Web Service key exists. */
+async function fillDemoPhotosByName(set: SetFn, get: GetFn) {
+  if (!useSettingsStore.getState().amapWebServiceKey) return
+  const cityName = get().cities[0]?.name || '杭州'
+  let filled = 0
+  for (const sp of get().spots.slice(0, 8)) {
+    if (sp.imageUrl || !sp.name.trim()) continue
+    try {
+      const pois = await fetchAmapPoiList({ city: cityName, keywords: sp.name.trim() })
+      if (!pois.length) continue
+      const name = sp.name.trim()
+      const hit = pois.find((p) => (p.name || '').trim() === name) ?? pois[0]
+      const photo = pickPoiPhoto(hit)
+      const amapId = hit.id || undefined
+      if (!photo && !amapId) continue
+      set({
+        spots: get().spots.map((x) =>
+          x.id === sp.id
+            ? { ...x, imageUrl: photo ?? x.imageUrl, amapId: amapId ?? x.amapId }
+            : x,
+        ),
+      })
+      filled += 1
+    } catch {
+      /* skip */
+    }
+  }
+  if (filled) useLogStore.getState().pushLog(`已为 ${filled} 个示例景点补全图片。`)
 }
 
 export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
+  const markUserTrip = () => {
+    if (get().dataSource === 'demo') set({ dataSource: 'user' })
+  }
+
   return {
-    setTripField: (field, value) => set({ [field]: value } as Partial<TripCoreState>),
+    markUserTrip,
+
+    setTripField: (field, value) => {
+      markUserTrip()
+      set({ [field]: value } as Partial<TripCoreState>)
+    },
 
     addCity: (name, lat, lng) => {
+      markUserTrip()
       const city: City = {
         id: uid('city'),
         name: name.trim(),
@@ -96,6 +145,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     updateCityLocation: (cityId, lat, lng) => {
+      markUserTrip()
       const city = get().cities.find((c) => c.id === cityId)
       set((s) => ({
         cities: s.cities.map((c) =>
@@ -108,6 +158,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     moveCity: (cityId, delta) => {
+      markUserTrip()
       const cities = [...get().cities]
       const index = cities.findIndex((c) => c.id === cityId)
       if (index === -1) return
@@ -120,6 +171,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     deleteCity: (cityId) => {
+      markUserTrip()
       set((s) => ({
         cities: s.cities.filter((c) => c.id !== cityId),
         spots: s.spots.filter((sp) => sp.cityId !== cityId),
@@ -130,6 +182,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     addSpot: (spotData) => {
+      markUserTrip()
       const { spots } = get()
       if (isDuplicateSpot(spots, spotData.cityId, spotData.name, spotData.location.lat, spotData.location.lng)) {
         useLogStore.getState().pushLog('该景点在当前城市中已经存在或位置非常接近，已自动跳过重复添加。', 'warn')
@@ -143,6 +196,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     removeSpot: (spotId) => {
+      markUserTrip()
       const target = get().spots.find((x) => x.id === spotId)
       if (target?.imageBlobId) {
         void deleteImageBlob(target.imageBlobId).catch(() => {})
@@ -161,6 +215,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     updateSpot: (spotId, patch) => {
+      markUserTrip()
       set((s) => ({
         spots: s.spots.map((x) => (x.id === spotId ? { ...x, ...patch } : x)),
       }))
@@ -168,6 +223,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     saveDay: ({ dayIndex, cityId, date, lodging, spotOrder, transportMode }) => {
+      markUserTrip()
       const plans = [...get().dailyPlans]
       const existingIndex = plans.findIndex((d) => d.dayIndex === dayIndex)
       if (existingIndex >= 0) {
@@ -192,11 +248,13 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     deleteDay: (dayId) => {
+      markUserTrip()
       set((s) => ({ dailyPlans: s.dailyPlans.filter((d) => d.id !== dayId) }))
       get().scheduleAiRefresh()
     },
 
     setDaySpotOrder: (dayId, spotOrder) => {
+      markUserTrip()
       set((s) => ({
         dailyPlans: s.dailyPlans.map((d) => {
           if (d.id !== dayId) return d
@@ -214,6 +272,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     reorderDays: (activeDayId, overDayId) => {
+      markUserTrip()
       if (activeDayId === overDayId) return
       set((s) => {
         const active = s.dailyPlans.find((d) => d.id === activeDayId)
@@ -231,6 +290,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     setSegmentMode: (dayId, fromSpotId, toSpotId, mode) => {
+      markUserTrip()
       const key = `${fromSpotId}|${toSpotId}`
       set((s) => ({
         dailyPlans: s.dailyPlans.map((d) => {
@@ -244,6 +304,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     assignSpotToDay: (spotId, dayId) => {
+      markUserTrip()
       set((s) => ({
         dailyPlans: s.dailyPlans.map((d) => {
           if (d.id !== dayId) {
@@ -259,6 +320,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     assignSpotToActivePath: (spotId, dayId) => {
+      markUserTrip()
       set((s) => ({
         dailyPlans: s.dailyPlans.map((d) => {
           if (d.id !== dayId) return d
@@ -279,6 +341,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     removeSpotFromDay: (spotId, dayId) => {
+      markUserTrip()
       set((s) => ({
         dailyPlans: s.dailyPlans.map((d) => {
           if (d.id !== dayId) return d
@@ -296,6 +359,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     addDayBranch: (dayId, when, label) => {
+      markUserTrip()
       const day = get().dailyPlans.find((d) => d.id === dayId)
       if (!day) return null
       const branchId = uid('branch')
@@ -325,6 +389,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     removeDayBranch: (dayId, branchId) => {
+      markUserTrip()
       set((s) => ({
         dailyPlans: s.dailyPlans.map((d) => {
           if (d.id !== dayId) return d
@@ -341,6 +406,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     setActiveBranch: (dayId, branchId) => {
+      markUserTrip()
       set((s) => ({
         dailyPlans: s.dailyPlans.map((d) =>
           d.id === dayId ? { ...d, activeBranchId: branchId } : d,
@@ -350,6 +416,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     renameDayBranch: (dayId, branchId, label) => {
+      markUserTrip()
       set((s) => ({
         dailyPlans: s.dailyPlans.map((d) =>
           d.id === dayId
@@ -366,6 +433,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     moveSpotBetweenDays: (spotId, fromDayId, toDayId) => {
+      markUserTrip()
       if (fromDayId === toDayId) return
       set((s) => ({
         dailyPlans: s.dailyPlans.map((d) => {
@@ -378,6 +446,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     ensureDaysForDateRange: () => {
+      markUserTrip()
       const s = get()
       let daysCount = 3
       if (s.tripStart && s.tripEnd) {
@@ -408,6 +477,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
     },
 
     confirmAutoSeed: () => {
+      markUserTrip()
       const pending = get().autoSeedPending
       if (!pending) return
       const { city, pois } = pending
@@ -441,11 +511,14 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
         tripExpectation: DEMO_TRIP_META.expectation,
         tripType: DEMO_TRIP_META.type,
         autoSeedPending: null,
+        dataSource: 'demo',
         mapFocusDayId: null,
         mapFocusSpotId: null,
       } as Partial<TripCoreState>)
-      useLogStore.getState().pushLog('已加载示例数据：杭州 3 天，含 8 个景点（3 个已分配到 Day 1）。')
+      useLogStore.getState().pushLog('已加载示例数据：杭州 3 天（仅演示，编辑后会变为你的行程）。')
       get().bumpMapRedraw()
+      void enrichSpotPhotos(get().spots, set, get)
+      void fillDemoPhotosByName(set, get)
     },
 
     clearTrip: () => {
@@ -459,6 +532,7 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
         tripExpectation: '',
         tripType: '',
         autoSeedPending: null,
+        dataSource: 'empty',
         mapFocusDayId: null,
         mapFocusSpotId: null,
       } as Partial<TripCoreState>)

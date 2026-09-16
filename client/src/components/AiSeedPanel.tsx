@@ -140,13 +140,15 @@ export function AiSeedModal() {
               >
                 目的地小测
               </button>
-              <button
-                type="button"
-                className="font-medium text-teal-700 hover:underline"
-                onClick={() => loadDemoData()}
-              >
-                加载示例数据
-              </button>
+              {import.meta.env.DEV && (
+                <button
+                  type="button"
+                  className="font-medium text-teal-700 hover:underline"
+                  onClick={() => loadDemoData()}
+                >
+                  加载示例数据
+                </button>
+              )}
             </div>
           )}
 

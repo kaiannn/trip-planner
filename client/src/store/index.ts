@@ -40,10 +40,14 @@ export const useTripStore = create<StoreWithLogs>()(
     }),
     {
       name: 'trip-planner-storage',
-      version: 2,
+      version: 3,
       migrate: (persistedState) => {
         const s = persistedState as
-          | { spots?: Array<{ kind?: string }> }
+          | {
+              spots?: Array<{ kind?: string; id?: string }>
+              cities?: unknown[]
+              dataSource?: 'empty' | 'demo' | 'user'
+            }
           | undefined
         if (s?.spots?.length) {
           s.spots = s.spots.map((sp) =>
@@ -51,6 +55,19 @@ export const useTripStore = create<StoreWithLogs>()(
               ? { ...sp, kind: 'sight' }
               : sp,
           )
+        }
+        if (!s || typeof s !== 'object') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return { dataSource: 'empty' } as any
+        }
+        if (!s.dataSource) {
+          const spots = s.spots ?? []
+          const hasDemo = spots.some((sp) => String(sp?.id ?? '').startsWith('demo_'))
+          s.dataSource = hasDemo
+            ? 'demo'
+            : spots.length || (s.cities?.length ?? 0)
+              ? 'user'
+              : 'empty'
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return s as any
@@ -66,6 +83,7 @@ export const useTripStore = create<StoreWithLogs>()(
         tripType: state.tripType,
         aiCityId: state.aiCityId,
         aiBudget: state.aiBudget,
+        dataSource: state.dataSource,
       }),
     },
   ),

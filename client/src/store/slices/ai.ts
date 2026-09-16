@@ -239,6 +239,7 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
     },
 
     seedPoolFromAi: async () => {
+      get().markUserTrip()
       const s = get()
       const desc = s.aiSeedInput.trim()
       if (!desc) { useLogStore.getState().pushLog('请先填写你想去哪。', 'warn'); return }

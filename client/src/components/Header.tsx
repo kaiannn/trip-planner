@@ -14,6 +14,8 @@ export function Header() {
   const tripTitle = useTripStore((s) => s.tripTitle)
   const tripStart = useTripStore((s) => s.tripStart)
   const tripEnd = useTripStore((s) => s.tripEnd)
+  const dataSource = useTripStore((s) => s.dataSource)
+  const clearTrip = useTripStore((s) => s.clearTrip)
   const setTripField = useTripStore((s) => s.setTripField)
   const loadDemoData = useTripStore((s) => s.loadDemoData)
   const setAiSeedOpen = useTripStore((s) => s.setAiSeedOpen)
@@ -58,10 +60,25 @@ export function Header() {
           <h1
             className="cursor-default select-none font-serif text-xl font-bold tracking-tight text-slate-900 md:text-2xl"
             onClick={handleTitleClick}
-            title="连续点击三次加载示例数据"
+            title="连续点击三次加载示例数据（开发彩蛋）"
           >
             旅程攻略
           </h1>
+          {dataSource === 'demo' && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100/90 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-amber-300/60">
+              示例数据
+              <button
+                type="button"
+                className="rounded-full px-1 text-amber-700/80 transition hover:bg-amber-200/80 hover:text-amber-900"
+                title="清空示例，回到空白行程"
+                onClick={() => {
+                  if (window.confirm('退出示例并清空当前行程？此操作不可撤销。')) clearTrip()
+                }}
+              >
+                退出
+              </button>
+            </span>
+          )}
           <input
             className="min-w-[160px] flex-1 border-0 bg-transparent p-0 text-[14px] font-medium text-slate-500 placeholder:text-slate-400 focus:outline-none focus:ring-0 md:max-w-[420px] md:text-[15px]"
             value={tripTitle}
