@@ -3,7 +3,7 @@ feature: demo-user-isolation
 status: delivered
 updated: 2026-09-16
 branch: feat/demo-user-isolation
-commits: (pending push)
+commits: f511ac5..f0986b7
 ---
 
 # Demo / User Trip Isolation (#42)
