@@ -1,10 +1,14 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAmapWebServiceKey, requireAmapWebServiceKey, seedWebServiceKeyFromEnv } from '../lib/amapKey'
 import { useSettingsStore } from '../store/settingsStore'
 
 describe('amapKey', () => {
   beforeEach(() => {
+    vi.stubEnv('VITE_AMAP_WEBSERVICE_KEY', '')
     useSettingsStore.setState({ amapWebServiceKey: '' })
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('prefers settings web service key over empty env', () => {

@@ -20,6 +20,7 @@ describe('amapCycling', () => {
   })
 
   it('requires web service key', async () => {
+    vi.stubEnv('VITE_AMAP_WEBSERVICE_KEY', '')
     useSettingsStore.setState({ amapWebServiceKey: '' })
     await expect(
       planRidingSegment({ lat: 1, lng: 2 }, { lat: 3, lng: 4 }),
