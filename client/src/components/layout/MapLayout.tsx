@@ -1,17 +1,20 @@
 import { MapPanel } from '../MapPanel'
 import { DayTimeline } from '../timeline/DayTimeline'
 import { FloatingSpotPool } from '../pool/FloatingSpotPool'
-import { AiSeedPanel } from '../AiSeedPanel'
+import { DayPlanPanel } from '../modals/DayPlanModal'
 
+/**
+ * Map-first layout: the map owns the full remaining viewport.
+ * Floating panels dock to corners; day organizer must live here so
+ * absolute docks are relative to the map, not the whole window.
+ */
 export function MapLayout() {
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="relative min-h-0 flex-1 overflow-hidden">
-        <MapPanel />
-        <AiSeedPanel />
-        <FloatingSpotPool />
-      </div>
+    <div className="absolute inset-0">
+      <MapPanel className="absolute inset-0" />
+      <FloatingSpotPool />
       <DayTimeline />
+      <DayPlanPanel />
     </div>
   )
 }

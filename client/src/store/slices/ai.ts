@@ -17,12 +17,15 @@ export interface AiState {
   aiRefreshTimer: ReturnType<typeof setTimeout> | null
   aiSeedInput: string
   aiSeedStatus: string
+  /** AI recommend dialog open (Header button). */
+  aiSeedOpen: boolean
 }
 
 export interface AiActions {
   setAiCityId: (id: string) => void
   setAiBudget: (v: string) => void
   setAiSeedInput: (v: string) => void
+  setAiSeedOpen: (v: boolean) => void
   requestAiRecommendations: (focus?: AiFocus) => Promise<void>
   syncTripIntelligence: () => Promise<void>
   scheduleAiRefresh: () => void
@@ -42,6 +45,7 @@ export const initialAiState: AiState = {
   aiRefreshTimer: null,
   aiSeedInput: '',
   aiSeedStatus: '',
+  aiSeedOpen: false,
 }
 
 export function createAiActions(set: SetFn, get: GetFn): AiActions {
@@ -49,6 +53,7 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
     setAiCityId: (id) => set({ aiCityId: id }),
     setAiBudget: (v) => set({ aiBudget: v }),
     setAiSeedInput: (v) => set({ aiSeedInput: v }),
+    setAiSeedOpen: (v) => set({ aiSeedOpen: v }),
 
     requestAiRecommendations: async (focus: AiFocus = 'all') => {
       const s = get()

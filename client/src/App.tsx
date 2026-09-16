@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { Header } from './components/Header'
 import { MapLayout } from './components/layout/MapLayout'
-import { DayPlanModal } from './components/modals/DayPlanModal'
+import { AiSeedModal } from './components/AiSeedPanel'
 import { SettingsModal } from './components/modals/SettingsModal'
 import { SpotDetailModal } from './components/modals/SpotDetailModal'
 import { SpotPoolModal } from './components/modals/SpotPoolModal'
@@ -15,13 +15,14 @@ export default function App() {
   useEffect(() => { checkKeys() }, [checkKeys])
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex h-dvh flex-col overflow-hidden bg-slate-100">
       <Header />
-      <main className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col px-4 pb-4 pt-3 md:px-6">
+      {/* Map owns the entire remaining viewport — panels float on top. */}
+      <main className="relative min-h-0 flex-1">
         <MapLayout />
       </main>
+      <AiSeedModal />
       <SpotPoolModal />
-      <DayPlanModal />
       <TripWizardModal />
       <SpotDetailModal />
       <SettingsModal />

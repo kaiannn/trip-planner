@@ -3,7 +3,7 @@ import { fetchAmapPoiList } from '../../api/amap'
 import { fetchAiPoiQuery } from '../../api/ai'
 import { useLogStore } from '../logStore'
 import type { SetFn, GetFn } from '../types'
-import { convertAmapPois, collectTripContext } from '../utils'
+import { convertAmapPois, collectTripContext, enrichSpotPhotos } from '../utils'
 
 export interface AmapPoiState {
   amapKeywords: string
@@ -47,6 +47,9 @@ export function createAmapPoiActions(set: SetFn, get: GetFn): AmapPoiActions {
         set({ spots: result.spots })
         useLogStore.getState().pushLog(`已将 ${result.added} 个高德 POI 加入景点池（${cityName}）。`)
         get().scheduleAiRefresh()
+        void enrichSpotPhotos(result.spots, set, get).then((n) => {
+          if (n) useLogStore.getState().pushLog(`已为 ${n} 个景点补全图片。`)
+        })
       } catch (e) {
         useLogStore.getState().pushLog(`高德 POI 请求失败：${e instanceof Error ? e.message : e}`, 'error')
       }
@@ -70,6 +73,9 @@ export function createAmapPoiActions(set: SetFn, get: GetFn): AmapPoiActions {
         set({ spots: result.spots })
         useLogStore.getState().pushLog(`已根据 AI+高德为 ${cityName} 加入 ${result.added} 个候选景点。`)
         get().scheduleAiRefresh()
+        void enrichSpotPhotos(result.spots, set, get).then((n) => {
+          if (n) useLogStore.getState().pushLog(`已为 ${n} 个景点补全图片。`)
+        })
       } catch (e) {
         useLogStore.getState().pushLog(`AI 辅助高德 POI 请求失败：${e instanceof Error ? e.message : e}`, 'error')
       }
