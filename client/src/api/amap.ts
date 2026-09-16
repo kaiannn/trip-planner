@@ -51,7 +51,8 @@ export function pickPoiPhoto(poi: Pick<AmapPoi, 'photos'>): string | undefined {
     const u = photoUrlFromEntry(p as AmapPhoto | string)
     if (u) urls.push(u)
   }
-  return urls[0]
+  // Prefer https (mixed-content safe on https pages)
+  return urls.find((u) => /^https:/i.test(u)) ?? urls[0]
 }
 
 function parseV5Poi(raw: Record<string, unknown>): AmapPoi {

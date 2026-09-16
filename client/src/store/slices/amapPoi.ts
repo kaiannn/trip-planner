@@ -2,8 +2,14 @@ import type { City } from '../../types'
 import { fetchAmapPoiList } from '../../api/amap'
 import { fetchAiPoiQuery } from '../../api/ai'
 import { useLogStore } from '../logStore'
+import { useSettingsStore } from '../settingsStore'
 import type { SetFn, GetFn } from '../types'
-import { convertAmapPois, collectTripContext, enrichSpotPhotos } from '../utils'
+import {
+  convertAmapPois,
+  collectTripContext,
+  enrichSpotPhotos,
+  backfillMissingSpotPhotos,
+} from '../utils'
 
 export interface AmapPoiState {
   amapKeywords: string
@@ -18,6 +24,8 @@ export interface AmapPoiActions {
   fetchAmapPoi: () => Promise<void>
   fetchAmapPoiByAI: () => Promise<void>
   autoSeedPoisForCity: (city: City) => Promise<void>
+  /** One-shot boot backfill for legacy spots missing photos. */
+  backfillSpotPhotos: () => Promise<void>
 }
 
 export const initialAmapPoiState: AmapPoiState = {
@@ -26,11 +34,34 @@ export const initialAmapPoiState: AmapPoiState = {
   amapCityName: '',
 }
 
+let backfillInFlight = false
+let backfillDone = false
+
 export function createAmapPoiActions(set: SetFn, get: GetFn): AmapPoiActions {
   return {
     setAmapKeywords: (v) => set({ amapKeywords: v }),
     setAmapNatural: (v) => set({ amapNatural: v }),
     setAmapCityName: (name) => set({ amapCityName: name }),
+
+    backfillSpotPhotos: async () => {
+      if (backfillInFlight || backfillDone) return
+      if (!useSettingsStore.getState().amapWebServiceKey) return
+      const missing = get().spots.filter((s) => !s.imageUrl && !s.imageBlobId && s.name)
+      if (!missing.length) {
+        backfillDone = true
+        return
+      }
+      backfillInFlight = true
+      try {
+        const n = await backfillMissingSpotPhotos(set, get)
+        if (n) useLogStore.getState().pushLog(`已为 ${n} 个景点补全图片。`)
+        backfillDone = true
+      } catch {
+        /* silent — retry next session */
+      } finally {
+        backfillInFlight = false
+      }
+    },
 
     fetchAmapPoi: async () => {
       get().markUserTrip()
