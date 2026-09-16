@@ -5,6 +5,7 @@ interface SettingsState {
   llmApiKey: string
   llmBaseUrl: string
   llmModel: string
+  /** Web 服务 Key（restapi）— 与地图 JS Key 不是同一个 */
   amapWebServiceKey: string
   settingsOpen: boolean
 }

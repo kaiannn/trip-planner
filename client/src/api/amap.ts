@@ -1,4 +1,4 @@
-import { useSettingsStore } from '../store/settingsStore'
+import { requireAmapWebServiceKey } from '../lib/amapKey'
 
 export interface AmapPhoto {
   title?: string
@@ -64,8 +64,7 @@ export async function fetchAmapPoiList(params: {
   quality?: string
   types?: string
 }): Promise<AmapPoi[]> {
-  const key = useSettingsStore.getState().amapWebServiceKey
-  if (!key) throw new Error('未配置高德 Web 服务 Key，请在设置中填写。')
+  const key = requireAmapWebServiceKey()
 
   let pois: AmapPoi[] = []
 
@@ -121,8 +120,7 @@ export async function fetchAmapPoiList(params: {
 
 /** Detail by poi id — richer photos / business. */
 export async function fetchAmapPoiDetail(poiId: string): Promise<AmapPoi | null> {
-  const key = useSettingsStore.getState().amapWebServiceKey
-  if (!key) return null
+  const key = requireAmapWebServiceKey()
   // v5 detail first
   try {
     const url = new URL('https://restapi.amap.com/v5/place/detail')
