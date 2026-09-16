@@ -1,10 +1,8 @@
-import { useSettingsStore } from '../store/settingsStore'
+import { requireAmapWebServiceKey } from '../lib/amapKey'
 import type { CyclingLatLng, CyclingNearbyPoi, CyclingSegment } from './types'
 
 function requireKey(): string {
-  const key = useSettingsStore.getState().amapWebServiceKey
-  if (!key) throw new Error('未配置高德 Web 服务 Key，请在设置中填写。')
-  return key
+  return requireAmapWebServiceKey()
 }
 
 function fmtCoord(p: CyclingLatLng): string {

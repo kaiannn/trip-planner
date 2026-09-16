@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { getAmapJsKey, getAmapSecurityCode } from '../../lib/amapKey'
 
 export interface AmapScriptState {
   scriptReady: boolean
@@ -9,9 +10,9 @@ export interface AmapScriptState {
  * Loads the AMap JS SDK and plugins. Returns script ready state and any error.
  */
 export function useAmapScript(reportError: (msg: string) => void): AmapScriptState {
-  const amapKey = import.meta.env.VITE_AMAP_KEY || 'YOUR_AMAP_KEY'
-  const amapSecurityCode = import.meta.env.VITE_AMAP_SECURITY_CODE || ''
-  const amapKeyMissing = amapKey === 'YOUR_AMAP_KEY' || !amapKey.trim()
+  const amapKey = getAmapJsKey()
+  const amapSecurityCode = getAmapSecurityCode()
+  const amapKeyMissing = !amapKey || amapKey === 'YOUR_AMAP_KEY'
 
   const [scriptReady, setScriptReady] = useState(() => !!window.AMap)
   const [mapLoadError, setMapLoadError] = useState<string | null>(() =>

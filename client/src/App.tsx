@@ -7,12 +7,16 @@ import { SpotDetailModal } from './components/modals/SpotDetailModal'
 import { SpotPoolModal } from './components/modals/SpotPoolModal'
 import { TripWizardModal } from './components/modals/TripWizardModal'
 import { useSettingsStore } from './store/settingsStore'
+import { seedWebServiceKeyFromEnv } from './lib/amapKey'
 import { CyclingRouteBookModal } from './cycling/CyclingRouteBookModal'
 
 export default function App() {
   const checkKeys = useSettingsStore((s) => s.checkKeys)
 
-  useEffect(() => { checkKeys() }, [checkKeys])
+  useEffect(() => {
+    seedWebServiceKeyFromEnv()
+    checkKeys()
+  }, [checkKeys])
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-slate-100">

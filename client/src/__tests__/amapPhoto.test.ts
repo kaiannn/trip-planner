@@ -1,17 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { pickPoiPhoto, type AmapPoi } from '../api/amap'
+import { pickPoiPhoto } from '../api/amap'
 import { convertAmapPois } from '../store/utils'
 import type { Spot } from '../types'
 
 describe('pickPoiPhoto', () => {
-  it('returns first https photo url', () => {
-    const poi: AmapPoi = {
-      photos: [
-        { title: 'a', url: 'http://insecure.example/a.jpg' },
-        { title: 'b', url: 'https://example.com/b.jpg' },
-      ],
-    }
-    expect(pickPoiPhoto(poi)).toBe('https://example.com/b.jpg')
+  it('upgrades http AMap photo urls to https (mixed content)', () => {
+    expect(
+      pickPoiPhoto({
+        photos: [{ url: 'http://store.is.autonavi.com/showpic/abc' }],
+      }),
+    ).toBe('https://store.is.autonavi.com/showpic/abc')
+  })
+
+  it('normalizes protocol-relative urls to https', () => {
+    expect(pickPoiPhoto({ photos: [{ url: '//wprd01.is.autonavi.com/x.jpg' }] })).toBe(
+      'https://wprd01.is.autonavi.com/x.jpg',
+    )
   })
 
   it('handles single photo object and string urls', () => {

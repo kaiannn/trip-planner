@@ -1,4 +1,4 @@
-import { useSettingsStore } from '../store/settingsStore'
+import { requireAmapWebServiceKey } from '../lib/amapKey'
 
 export interface AmapPhoto {
   title?: string
@@ -26,14 +26,32 @@ export interface AmapPoi {
   photos?: AmapPhoto[] | AmapPhoto
 }
 
+/** Normalize AMap photo URL: protocol-relative → https, trim, force https (mixed-content). */
+function normalizePhotoUrl(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined
+  let u = raw.trim()
+  if (!u) return undefined
+  if (u.startsWith('//')) u = `https:${u}`
+  if (!/^https?:\/\//i.test(u)) return undefined
+  // AMap returns http://store.is.autonavi.com/... — browsers block mixed content on HTTPS pages
+  if (/^http:\/\//i.test(u)) u = u.replace(/^http:\/\//i, 'https://')
+  return u
+}
+
+function photoUrlFromEntry(p: AmapPhoto | string | undefined): string | undefined {
+  if (!p) return undefined
+  if (typeof p === 'string') return normalizePhotoUrl(p)
+  return normalizePhotoUrl(p.url)
+}
+
 export function pickPoiPhoto(poi: Pick<AmapPoi, 'photos'>): string | undefined {
   const list = Array.isArray(poi.photos) ? poi.photos : poi.photos ? [poi.photos] : []
   const urls: string[] = []
   for (const p of list) {
-    const u = typeof p === 'string' ? p : p?.url
-    if (u && /^https?:\/\//i.test(u)) urls.push(u)
+    const u = photoUrlFromEntry(p as AmapPhoto | string)
+    if (u) urls.push(u)
   }
-  return urls.find((u) => /^https:/i.test(u)) ?? urls[0]
+  return urls[0]
 }
 
 function parseV5Poi(raw: Record<string, unknown>): AmapPoi {
@@ -64,8 +82,7 @@ export async function fetchAmapPoiList(params: {
   quality?: string
   types?: string
 }): Promise<AmapPoi[]> {
-  const key = useSettingsStore.getState().amapWebServiceKey
-  if (!key) throw new Error('未配置高德 Web 服务 Key，请在设置中填写。')
+  const key = requireAmapWebServiceKey()
 
   let pois: AmapPoi[] = []
 
@@ -121,8 +138,7 @@ export async function fetchAmapPoiList(params: {
 
 /** Detail by poi id — richer photos / business. */
 export async function fetchAmapPoiDetail(poiId: string): Promise<AmapPoi | null> {
-  const key = useSettingsStore.getState().amapWebServiceKey
-  if (!key) return null
+  const key = requireAmapWebServiceKey()
   // v5 detail first
   try {
     const url = new URL('https://restapi.amap.com/v5/place/detail')
