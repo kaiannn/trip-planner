@@ -1,5 +1,5 @@
 import type { AmapPoi } from '../api/amap'
-import { fetchAmapPoiDetail, pickPoiPhoto } from '../api/amap'
+import { fetchAmapPoiDetail, fetchAmapPoiList, pickPoiPhoto } from '../api/amap'
 import type { DailyPlan, Spot } from '../types'
 import { isDuplicateSpot } from '../lib/geo'
 import type { GetFn, SetFn } from './types'
@@ -49,6 +49,22 @@ export function convertAmapPois(
 
 const PHOTO_ENRICH_CONCURRENCY = 4
 const PHOTO_ENRICH_MAX = 12
+const PHOTO_BACKFILL_MAX = 8
+
+function hasPhoto(s: Spot): boolean {
+  return Boolean(s.imageUrl || s.imageBlobId)
+}
+
+function applySpotPatch(
+  spots: Spot[],
+  patches: Map<string, Partial<Spot>>,
+): Spot[] {
+  if (!patches.size) return spots
+  return spots.map((s) => {
+    const p = patches.get(s.id)
+    return p ? { ...s, ...p } : s
+  })
+}
 
 /** Backfill imageUrl via place/detail for spots that have amapId but no photo. */
 export async function enrichSpotPhotos(
@@ -57,7 +73,7 @@ export async function enrichSpotPhotos(
   get: GetFn,
 ): Promise<number> {
   const pending = spots
-    .filter((s) => s.amapId && !s.imageUrl && !s.imageBlobId)
+    .filter((s) => s.amapId && !hasPhoto(s))
     .slice(0, PHOTO_ENRICH_MAX)
   if (!pending.length) return 0
 
@@ -77,17 +93,81 @@ export async function enrichSpotPhotos(
     )
     const updates = results.filter((r): r is { id: string; photo: string } => Boolean(r))
     if (!updates.length) continue
-    const byId = new Map(updates.map((u) => [u.id, u.photo]))
-    set({
-      spots: get().spots.map((s) =>
-        byId.has(s.id) && !s.imageUrl && !s.imageBlobId
-          ? { ...s, imageUrl: byId.get(s.id) }
-          : s,
-      ),
-    })
+    const byId = new Map(updates.map((u) => [u.id, { imageUrl: u.photo }]))
+    set({ spots: applySpotPatch(get().spots, byId) })
     filled += updates.length
   }
   return filled
+}
+
+/**
+ * For legacy pool spots (no amapId / no photo): search by name+city,
+ * attach amapId + first photo when names match closely enough.
+ */
+export async function backfillSpotPhotosByName(
+  set: SetFn,
+  get: GetFn,
+  limit = PHOTO_BACKFILL_MAX,
+): Promise<number> {
+  const s = get()
+  const cityById = new Map(s.cities.map((c) => [c.id, c] as const))
+  const pending = s.spots
+    .filter((sp) => !hasPhoto(sp) && sp.name.trim())
+    .slice(0, limit)
+  if (!pending.length) return 0
+
+  let filled = 0
+  for (const spot of pending) {
+    const city = cityById.get(spot.cityId)
+    if (!city?.name) continue
+    try {
+      const pois = await fetchAmapPoiList({
+        city: city.name,
+        keywords: spot.name.trim(),
+        quality: 'normal',
+      })
+      if (!pois.length) continue
+      const name = spot.name.trim()
+      const exact = pois.find((p) => (p.name || '').trim() === name)
+      const candidate = exact ?? pois.find((p) => pickPoiPhoto(p)) ?? pois[0]
+      const photo = pickPoiPhoto(candidate)
+      const amapId = candidate.id || undefined
+      if (!photo && !amapId) continue
+      // Prefer detail when list has id but no photo
+      let finalPhoto = photo
+      if (!finalPhoto && amapId) {
+        try {
+          const detail = await fetchAmapPoiDetail(amapId)
+          finalPhoto = detail ? pickPoiPhoto(detail) : undefined
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!finalPhoto && !amapId) continue
+      const latest = get().spots.find((x) => x.id === spot.id)
+      if (!latest || hasPhoto(latest)) continue
+      set({
+        spots: applySpotPatch(
+          get().spots,
+          new Map([[spot.id, { imageUrl: finalPhoto, amapId }]]),
+        ),
+      })
+      filled += 1
+    } catch {
+      /* skip one spot */
+    }
+  }
+  return filled
+}
+
+/** Boot / manual: amapId detail first, then name search for leftovers. */
+export async function backfillMissingSpotPhotos(
+  set: SetFn,
+  get: GetFn,
+): Promise<number> {
+  const n1 = await enrichSpotPhotos(get().spots, set, get)
+  const n2 = await backfillSpotPhotosByName(set, get)
+  return n1 + n2
 }
 
 export function collectTripContext(get: GetFn) {

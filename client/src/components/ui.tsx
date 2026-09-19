@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useState, type ButtonHTMLAttributes } from 'react'
+import { useEffect, useState, type ButtonHTMLAttributes } from 'react'
 
 /** 统一输入框：仿牛皮纸基底 + 暖色聚焦环 */
 export const inputClass =
@@ -93,6 +93,10 @@ export function SpotImg({
   aspectClassName?: string
 }) {
   const [failed, setFailed] = useState(false)
+  // Reset latch when src changes so a later-enriched URL can still render
+  useEffect(() => {
+    setFailed(false)
+  }, [src])
   const show = src && !failed
   return show ? (
     <img

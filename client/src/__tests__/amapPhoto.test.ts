@@ -18,6 +18,12 @@ describe('pickPoiPhoto', () => {
     )
   })
 
+  it('trims whitespace around urls', () => {
+    expect(pickPoiPhoto({ photos: [{ url: '  https://example.com/p.jpg ' }] })).toBe(
+      'https://example.com/p.jpg',
+    )
+  })
+
   it('handles single photo object and string urls', () => {
     expect(pickPoiPhoto({ photos: { url: 'https://example.com/x.jpg' } })).toBe(
       'https://example.com/x.jpg',
@@ -30,6 +36,7 @@ describe('pickPoiPhoto', () => {
   it('returns undefined when no usable photo', () => {
     expect(pickPoiPhoto({})).toBeUndefined()
     expect(pickPoiPhoto({ photos: [{ url: 'ftp://x' }] })).toBeUndefined()
+    expect(pickPoiPhoto({ photos: [{ title: 'no url' }] })).toBeUndefined()
   })
 })
 

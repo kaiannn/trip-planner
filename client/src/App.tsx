@@ -8,6 +8,7 @@ import { SpotPoolModal } from './components/modals/SpotPoolModal'
 import { TripWizardModal } from './components/modals/TripWizardModal'
 import { useSettingsStore } from './store/settingsStore'
 import { seedWebServiceKeyFromEnv } from './lib/amapKey'
+import { useTripStore } from './store'
 import { CyclingRouteBookModal } from './cycling/CyclingRouteBookModal'
 
 export default function App() {
@@ -17,6 +18,14 @@ export default function App() {
     seedWebServiceKeyFromEnv()
     checkKeys()
   }, [checkKeys])
+
+  // Legacy pool spots may lack imageUrl/amapId — one-shot photo backfill
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void useTripStore.getState().backfillSpotPhotos()
+    }, 800)
+    return () => window.clearTimeout(t)
+  }, [])
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-slate-100">
