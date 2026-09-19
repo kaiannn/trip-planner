@@ -32,7 +32,10 @@ jobs:
       - name: Build
         run: npm run build --prefix client
         env:
+          # Secrets only — never commit key plaintext to the repo.
           VITE_AMAP_KEY: ${{ secrets.VITE_AMAP_KEY }}
+          VITE_AMAP_SECURITY_CODE: ${{ secrets.VITE_AMAP_SECURITY_CODE }}
+          VITE_AMAP_WEBSERVICE_KEY: ${{ secrets.VITE_AMAP_WEBSERVICE_KEY }}
           VITE_BASE_PATH: /trip-planner/
 
       - name: Upload artifact
