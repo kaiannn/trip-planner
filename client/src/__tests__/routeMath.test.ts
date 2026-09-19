@@ -9,6 +9,7 @@ import {
   hasLocatedEndpoints,
   locatedStops,
   parseDepartTime,
+  resolveSpeedDraft,
   sumSegmentDistance,
 } from '../cycling/routeMath'
 import type { CyclingSegment, CyclingStop } from '../cycling/types'
@@ -93,5 +94,20 @@ describe('routeMath', () => {
     expect(clampAvgSpeed(100)).toBe(40)
     expect(clampAvgSpeed(1)).toBe(5)
     expect(clampAvgSpeed(18.4)).toBe(18.4)
+  })
+
+  it('resolveSpeedDraft keeps intermediate typing states', () => {
+    expect(resolveSpeedDraft('2', 20)).toBe(2)
+    expect(resolveSpeedDraft('2.', 20)).toBe(2)
+    expect(resolveSpeedDraft('25', 20)).toBe(25)
+    expect(resolveSpeedDraft('15.5', 20)).toBe(15.5)
+  })
+
+  it('resolveSpeedDraft falls back on empty or invalid drafts', () => {
+    expect(resolveSpeedDraft('', 20)).toBe(20)
+    expect(resolveSpeedDraft('   ', 20)).toBe(20)
+    expect(resolveSpeedDraft('-', 20)).toBe(20)
+    expect(resolveSpeedDraft('.', 20)).toBe(20)
+    expect(resolveSpeedDraft('abc', 20)).toBe(20)
   })
 })

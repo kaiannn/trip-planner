@@ -143,3 +143,15 @@ export function clampAvgSpeed(v: number): number {
   if (!Number.isFinite(v)) return 20
   return Math.min(40, Math.max(5, Math.round(v * 10) / 10))
 }
+
+/**
+ * Resolve a number-input draft string for avg speed.
+ * Returns the draft number while typing (so intermediate states like "2" or "2." work),
+ * or `fallback` when the draft is empty/invalid. Callers clamp only on commit.
+ */
+export function resolveSpeedDraft(raw: string, fallback: number): number {
+  const t = (raw ?? '').trim()
+  if (!t || t === '-' || t === '.' || t === '-.') return fallback
+  const n = Number(t)
+  return Number.isFinite(n) ? n : fallback
+}
