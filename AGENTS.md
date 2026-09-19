@@ -1,87 +1,98 @@
 # AGENTS.md
 
-## Project Overview
-
-Map-driven trip planner. User describes a trip in natural language, AI returns candidate spots, AMap geocodes them onto a map, user drags spots into daily plans. Pure frontend — no backend, all API calls (LLM + AMap) happen in the browser.
+Map-driven trip planner + cycling route book. Pure frontend: LLM and AMap calls run in the browser. User-facing docs live in `README.md`.
 
 ## Commands
 
-All commands run from repo root (they delegate to `client/` via `--prefix`):
+From repo root (all delegate to `client/`):
 
 ```bash
-npm run dev          # Vite dev server → http://localhost:5173
-npm run build        # tsc -b && vite build → client/dist/
-npm run test         # vitest run (single pass)
-npm run test:watch   # vitest (watch mode)
-npm run lint         # eslint
+npm run dev       # Vite → http://localhost:5173
+npm run build     # tsc -b && vite build → client/dist/
+npm run test      # vitest run
+npm run lint      # eslint
+npm run preview   # vite preview
 ```
 
-Type check separately: `npx tsc -b` (working dir: `client/`)
+Watch mode / single file (workdir `client/`):
 
-**CI order** (`.github/workflows/ci.yml`): lint → typecheck → test → build. Run all four before pushing.
+```bash
+npm run test:watch
+npx vitest run src/__tests__/aiPrompt.test.ts
+npx tsc -b
+```
 
-## Architecture
+CI (`.github/workflows/ci.yml`) runs lint → typecheck → test → build. Match that before push.
+
+## Layout
 
 ```
 client/src/
-├── main.tsx           # Entry point
-├── App.tsx            # Root component, mounts modals + layout
-├── types.ts           # Core domain types (Spot, DailyPlan, City, etc.)
-├── store/             # Zustand state (persisted to localStorage)
-│   ├── index.ts       # Main store combining all slices
-│   ├── slices/        # ui, tripCore, ai, amapPoi, quiz
-│   ├── settingsStore.ts  # Separate store for API keys (not persisted with main)
-│   └── logStore.ts    # Standalone log store
-├── lib/               # Pure functions (no React, no side effects)
-│   ├── aiPrompt.ts    # Builds LLM prompts from trip context
-│   ├── amapRouting.ts # AMap route/distance calculations
-│   ├── geo.ts         # Geocoding helpers
-│   └── spotKind.ts    # Spot type utilities
-├── api/               # External API clients
-│   ├── ai.ts          # LLM streaming (SSE) with auto-retry
-│   └── amap.ts        # AMap web service calls
-├── components/        # React components
-│   ├── map/           # Map hooks (useAmapScript) and overlays
-│   └── modals/        # All modals (Settings, SpotPool, DayPlan, etc.)
-└── map/               # AMap type declarations + MapContext
+├── App.tsx                 # Map layout + modals; seeds webservice key from env
+├── types.ts                # Spot / DailyPlan / City …
+├── store/                  # Zustand persist (localStorage)
+│   ├── index.ts            # slices + migrate
+│   ├── slices/             # tripCore, ai, amapPoi, ui, quiz
+│   ├── settingsStore.ts    # LLM + AMap webservice keys (not in trip persist)
+│   ├── logStore.ts
+│   └── utils.ts            # POI convert, photo enrich/backfill
+├── lib/
+│   ├── amapKey.ts          # ONLY place that reads AMap keys — use this
+│   ├── aiPrompt.ts / amapRouting.ts / geo.ts / spotKind.ts / …
+├── api/                    # ai.ts (SSE), amap.ts (restapi)
+├── cycling/                # standalone route-book module + own store
+├── components/             # layout/, map/, modals/, pool/, timeline/
+├── hooks/                  # useTripData, useMapRoutes, usePanelSize
+└── map/                    # AMap types + MapContext
 ```
 
-## Key Patterns
+## Key patterns
 
-- **Zustand slices**: Each slice exports `initial*State` + `create*Actions`. Combined in `store/index.ts` with `persist` middleware. Migration logic handles schema changes (e.g., adding `kind` field to spots).
-- **Spot types**: `Spot = SightSpot | HotelSpot | RestaurantSpot` — discriminated union via `kind` field. TypeScript narrows after checking `spot.kind`.
-- **Transport modes**: Per-segment overrides stored as `Record<string, TransportMode>` keyed by `"sourceId|destId"` on each DailyPlan.
-- **Image storage**: Browser-side compression → IndexedDB via `idb` library. `imageBlobId` on spots references IndexedDB entries.
-- **Settings**: API keys (LLM + AMap Web Service) stored in browser localStorage via `settingsStore.ts`, NOT in the main persisted store.
+**AMap keys** (`lib/amapKey.ts`):
 
-## Environment
+- JS / Web端 → `VITE_AMAP_KEY` (+ optional `VITE_AMAP_SECURITY_CODE`) → `webapi.amap.com` map SDK only
+- Web服务 → settings `amapWebServiceKey` **or** `VITE_AMAP_WEBSERVICE_KEY` → `restapi.amap.com` (POI / routing / photos / cycling)
+- **Never** fall back webservice → JS key (`USERKEY_PLAT_NOMATCH`)
+- `seedWebServiceKeyFromEnv()` on app boot if settings empty
+- Pages build injects all three via GitHub Secrets; do not commit key plaintext
 
-Build-time env (`.env` or CI secrets):
-- `VITE_AMAP_KEY` — AMap JS API Key for the map widget
-- `VITE_BASE_PATH` — Base path for routing (default `/`, GitHub Pages uses `/trip-planner/`)
+**Spots**: `Spot = Sight | Hotel | Restaurant` via `kind`. `imageUrl` / `amapId` from AMap; `imageBlobId` → IndexedDB (`idb`). Photo URLs forced to `https` in `api/amap.ts`.
 
-Runtime config (user enters in Settings modal, stored in localStorage):
-- LLM API Key (DeepSeek or OpenAI-compatible)
-- AMap Web Service Key (for geocoding/routing APIs)
+**Transport**: per-segment mode on each `DailyPlan` as `Record<"sourceId|destId", TransportMode>`.
 
-## Deployment
+**Demo trips**: `dataSource: 'empty' | 'demo' | 'user'` in `tripCore`. Triple-click header title loads demo; edits promote to `user`.
 
-- **GitHub Pages**: Auto-deploys on push to `main` via `.github/workflows/pages.yml`
-- **Docker**: `docker compose up --build` → nginx on port 8080
-- **Static**: `npm run build` → upload `client/dist/`
+**Cycling route book**: `cycling/store.ts` (separate persist key). `avgSpeedKmh` input uses draft string; clamp on blur only — do not clamp every keystroke.
 
-## TypeScript Config
+**Zustand**: slices export `initial*State` + `create*Actions`; persist `migrate` in `store/index.ts` when shape changes.
 
-Strict mode enabled with `noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`. Remove unused imports/variables — the build will fail otherwise.
+## Env
 
-## Testing
+`client/.env` (gitignored; copy from `client/.env.example`):
 
-Tests in `client/src/__tests__/`, using Vitest. Test pure functions from `lib/` — no component tests currently. Run single test file: `npx vitest run src/__tests__/aiPrompt.test.ts` (from `client/` dir).
+| Var | Role |
+|-----|------|
+| `VITE_AMAP_KEY` | Map JS SDK |
+| `VITE_AMAP_SECURITY_CODE` | JS key security code (required for keys created after 2021-12 if console enabled it) |
+| `VITE_AMAP_WEBSERVICE_KEY` | Optional build-time webservice key |
+| `VITE_BASE_PATH` | Asset base; Pages uses `/trip-planner/` |
 
-## Gotchas
+Runtime in Settings modal → localStorage: LLM key/baseUrl/model, AMap webservice key.
 
-- Root `package.json` has no dependencies — all real deps are in `client/package.json`
-- AMap requires both a JS API Key (build-time) AND a Web Service Key (runtime). Missing either breaks the map or geocoding.
-- Zustand persist version bump requires migration logic in `store/index.ts` — check the `migrate` function when changing persisted state shape.
-- Tailwind CSS v4 uses `@tailwindcss/vite` plugin, NOT PostCSS config.
-- `verbatimModuleSyntax` is on — use `import type` for type-only imports.
+## TypeScript / lint
+
+- Strict + `noUnusedLocals` + `noUnusedParameters` + `erasableSyntaxOnly` + `verbatimModuleSyntax`
+- Type-only imports: `import type { … }`
+- Unused imports fail `tsc -b` / build
+- Tailwind v4: `@tailwindcss/vite` plugin — no PostCSS config for Tailwind
+- Preserve Chinese comments
+
+## Tests
+
+`client/src/__tests__/` — Vitest, pure logic (lib + store utils + cycling + amapKey/photo). No React component tests. ~77 tests currently.
+
+## Deploy (for agents)
+
+- Pages: push `main` → `pages.yml`; secrets `VITE_AMAP_KEY`, `VITE_AMAP_SECURITY_CODE`, `VITE_AMAP_WEBSERVICE_KEY`
+- Docker: `docker compose up --build` (needs `VITE_AMAP_KEY` build arg) → :8080
+- Root `package.json` has scripts only; deps live in `client/package.json`
