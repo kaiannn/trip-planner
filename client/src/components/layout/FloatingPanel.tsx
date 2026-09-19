@@ -66,6 +66,10 @@ export interface FloatingPanelProps {
   sizeId?: string
   resetDockKey?: string | number | boolean | null
   resetSizeKey?: string | number | boolean | null
+  /** Preferred panel width in px (content-fit); clamped by parent limits. */
+  defaultW?: number
+  /** Re-apply defaultW/defaultBodyHeight when this key changes (e.g. day count). */
+  autoFitKey?: string | number | boolean | null
 }
 
 /**
@@ -92,6 +96,8 @@ export function FloatingPanel({
   sizeId,
   resetDockKey,
   resetSizeKey,
+  defaultW: preferredW,
+  autoFitKey,
 }: FloatingPanelProps) {
   const elRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
@@ -110,10 +116,11 @@ export function FloatingPanel({
 
   const { size, startCornerResize, startEdgeResize, resetSize, setSize } = usePanelSize({
     id: sizeId ?? 'panel',
-    defaultW: Math.min(300, limits.maxW),
+    defaultW: Math.min(preferredW ?? 300, limits.maxW),
     defaultH: Math.min(defaultBodyHeight, limits.maxH),
     limits,
     resetKey: resetSizeKey,
+    autoFitKey,
   })
 
   const sized = resizable
