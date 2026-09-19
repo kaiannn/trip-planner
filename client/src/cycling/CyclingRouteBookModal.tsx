@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { PlaceAutoComplete, type PlaceAutoCompleteValue } from '../components/PlaceAutoComplete'
 import { Btn, Field, inputClass } from '../components/ui'
 import { useSettingsStore } from '../store/settingsStore'
@@ -6,10 +6,12 @@ import { CyclingMap } from './CyclingMap'
 import {
   addMinutesToTime,
   buildCyclingMarkdown,
+  clampAvgSpeed,
   estimateDurationSec,
   formatDuration,
   formatKm,
   hasLocatedEndpoints,
+  resolveSpeedDraft,
 } from './routeMath'
 import { SUPPLY_SEARCH_PRESETS } from './amapCycling'
 import { snapshotRouteBook, useCyclingStore } from './store'
@@ -61,10 +63,26 @@ export function CyclingRouteBookModal() {
   const amapKey = useSettingsStore((s) => s.amapWebServiceKey)
 
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'fail'>('idle')
+  // Draft string for the speed input — clamp only on blur/Enter so keyboard typing works.
+  const [speedDraft, setSpeedDraft] = useState('')
+  const [speedFocused, setSpeedFocused] = useState(false)
+
+  useEffect(() => {
+    if (!speedFocused) setSpeedDraft(String(avgSpeedKmh))
+  }, [avgSpeedKmh, speedFocused])
+
+  const speedForEst = resolveSpeedDraft(speedFocused ? speedDraft : '', avgSpeedKmh)
+
+  const commitSpeed = () => {
+    const next = clampAvgSpeed(resolveSpeedDraft(speedDraft, avgSpeedKmh))
+    setField('avgSpeedKmh', next)
+    setSpeedDraft(String(next))
+    setSpeedFocused(false)
+  }
 
   const estSec = useMemo(
-    () => estimateDurationSec(totalDistance, avgSpeedKmh),
-    [totalDistance, avgSpeedKmh],
+    () => estimateDurationSec(totalDistance, speedForEst),
+    [totalDistance, speedForEst],
   )
   const arriveAt = useMemo(
     () => addMinutesToTime(departTime, estSec / 60),
@@ -174,8 +192,16 @@ export function CyclingRouteBookModal() {
                   max={40}
                   step={0.5}
                   className={inputClass}
-                  value={avgSpeedKmh}
-                  onChange={(e) => setField('avgSpeedKmh', Number(e.target.value))}
+                  value={speedFocused ? speedDraft : avgSpeedKmh}
+                  onChange={(e) => setSpeedDraft(e.target.value)}
+                  onFocus={() => {
+                    setSpeedFocused(true)
+                    setSpeedDraft(String(avgSpeedKmh))
+                  }}
+                  onBlur={commitSpeed}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur()
+                  }}
                 />
               </Field>
               <Field label="出发时刻">
