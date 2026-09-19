@@ -14,10 +14,59 @@ import { FloatingPanel } from '../layout/FloatingPanel'
 
 type MenuState = { dayId: string; x: number; y: number } | null
 
+/** DayChip fixed width — keep in sync with DayChip className w-[11.5rem] */
+const DAY_CHIP_W = 184
+const DAY_CHIP_GAP = 8
+const DAY_CHIP_H = 80
+const DAY_STRIP_PAD_Y = 16
+const PANEL_CHROME_X = 28
+const PANEL_HEADER_H = 56
+const HINT_H = 28
+const TREE_EXTRA_H = 240
+
+function panelWidthForCols(cols: number, maxW: number, minW: number): number {
+  const n = Math.max(1, cols)
+  const w = n * DAY_CHIP_W + (n - 1) * DAY_CHIP_GAP + PANEL_CHROME_X
+  return Math.min(maxW, Math.max(minW, w))
+}
+
+function fitDayTimelineSize(dayCount: number, showTree: boolean, hasHint: boolean) {
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+  const maxW = Math.floor(vw * 0.96)
+  const minW = 320
+  const n = Math.max(1, dayCount)
+
+  // Prefer one row; if too many nodes, max two rows of chips wide.
+  const oneRowW = n * DAY_CHIP_W + (n - 1) * DAY_CHIP_GAP + PANEL_CHROME_X
+  const cols = oneRowW <= maxW ? n : Math.max(2, Math.ceil(n / 2))
+  const defaultW = panelWidthForCols(cols, maxW, minW)
+
+  const usable = defaultW - PANEL_CHROME_X + DAY_CHIP_GAP
+  const perRow = Math.max(1, Math.floor(usable / (DAY_CHIP_W + DAY_CHIP_GAP)))
+  const rows = Math.min(2, Math.max(1, Math.ceil(n / perRow)))
+
+  const stripH = rows * DAY_CHIP_H + Math.max(0, rows - 1) * DAY_CHIP_GAP + DAY_STRIP_PAD_Y
+  const contentH = stripH + (showTree ? TREE_EXTRA_H : 0) + (hasHint ? HINT_H : 0)
+  // FloatingPanel size includes header chrome
+  const totalH = PANEL_HEADER_H + contentH
+  const defaultH = showTree
+    ? Math.min(Math.floor(vh * 0.9), Math.max(totalH, PANEL_HEADER_H + stripH + TREE_EXTRA_H))
+    : totalH
+
+  return {
+    defaultW,
+    defaultH: Math.round(defaultH),
+    minH: showTree ? PANEL_HEADER_H + stripH + 160 : PANEL_HEADER_H + Math.min(stripH, 96),
+    maxWRatio: 0.96,
+    maxHRatio: 0.92,
+  }
+}
+
 /**
  * Day strip — same FloatingPanel chrome as the spot pool
  * (header drag, four-corner resize, localStorage size).
- * Only dock/size params differ: wider, shorter, docked bottom.
+ * Width/height auto-fit day chips: 1 row, or at most 2 rows when many.
  */
 export function DayTimeline() {
   const dailyPlans = useTripStore((s) => s.dailyPlans)
@@ -81,6 +130,10 @@ export function DayTimeline() {
 
   const branchCount = dailyPlans.reduce((n, d) => n + (d.dayBranches?.length ?? 0), 0)
 
+  const hasHint = Boolean(focusedDay && !hasBranches(focusedDay))
+  const fit = fitDayTimelineSize(sortedDays.length, showTree, hasHint)
+  const autoFitKey = `${sortedDays.length}:${showTree ? 1 : 0}:${hasHint ? 1 : 0}`
+
   return (
     <>
       {menu && (
@@ -132,13 +185,15 @@ export function DayTimeline() {
         onToggleCollapse={() => setCollapsed((c) => !c)}
         defaultDock="bl"
         resetDockKey="days"
-        sizeId="day-timeline-v2"
+        sizeId="day-timeline-v3"
         resizable
-        defaultBodyHeight={showTree ? 320 : 168}
-        minBodyHeight={showTree ? 280 : 96}
+        defaultW={fit.defaultW}
+        defaultBodyHeight={fit.defaultH}
+        minBodyHeight={fit.minH}
         minW={320}
-        maxWRatio={0.96}
-        maxHRatio={0.42}
+        maxWRatio={fit.maxWRatio}
+        maxHRatio={fit.maxHRatio}
+        autoFitKey={autoFitKey}
         bodyClassName="!p-0"
         actions={
           focusedDay && hasBranches(focusedDay) ? (
@@ -160,7 +215,7 @@ export function DayTimeline() {
           className="flex h-full min-h-0 flex-col"
           onContextMenu={(e) => e.preventDefault()}
         >
-          <div className="flex shrink-0 items-center gap-2 overflow-x-auto px-3 pb-1 pt-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 px-3 pb-1 pt-2">
             {sortedDays.map((day, idx) => (
               <DayChip
                 key={day.id}

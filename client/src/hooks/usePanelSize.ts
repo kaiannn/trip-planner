@@ -72,8 +72,10 @@ export function usePanelSize(opts: {
   defaultH: number
   limits: PanelSizeLimits
   resetKey?: string | number | boolean | null
+  /** When this changes, re-apply defaultW/defaultH (content-driven fit). */
+  autoFitKey?: string | number | boolean | null
 }) {
-  const { id, defaultW, defaultH, limits, resetKey } = opts
+  const { id, defaultW, defaultH, limits, resetKey, autoFitKey } = opts
   const [size, setSize] = useState<PanelSize>(() => {
     const stored = readStored(id)
     return stored ? clampSize(stored, limits) : clampSize({ w: defaultW, h: defaultH }, limits)
@@ -85,6 +87,12 @@ export function usePanelSize(opts: {
     setSize(clampSize({ w: defaultW, h: defaultH }, limitsRef.current))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey])
+
+  useEffect(() => {
+    if (autoFitKey == null) return
+    setSize(clampSize({ w: defaultW, h: defaultH }, limitsRef.current))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFitKey])
 
   const persist = useCallback(
     (next: PanelSize) => {
