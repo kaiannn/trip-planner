@@ -17,6 +17,7 @@ declare namespace AMap {
     viewMode?: '2D' | '3D'
     zoom?: number
     center?: [number, number]
+    mapStyle?: string
   }
 
   interface MapEvent {
@@ -47,6 +48,7 @@ declare namespace AMap {
     title?: string
     map?: Map
     icon?: string | Icon
+    content?: string | HTMLElement
     label?: { content: string; direction?: 'top' | 'bottom' | 'left' | 'right' }
     zIndex?: number
     offset?: Pixel
@@ -96,6 +98,7 @@ declare namespace AMap {
     setContent(content: string | HTMLElement): void
     open(map: Map, position: LngLat): void
     close(): void
+    on(event: string, handler: () => void): void
   }
 
   interface InfoWindowOptions {
@@ -229,7 +232,7 @@ declare namespace AMap {
   }
 
   class Riding {
-    constructor(opts?: { hideMarkers?: boolean })
+    constructor(opts?: { hideMarkers?: boolean; policy?: number })
     search(
       origin: [number, number],
       destination: [number, number],
@@ -241,7 +244,10 @@ declare namespace AMap {
     distance?: number
     time?: number
     transit_mode?: string
-    path?: { lng: number; lat: number }[]
+    walking?: { path?: { lng: number; lat: number }[] }
+    bus?: { lines?: { path?: { lng: number; lat: number }[] }[] }
+    railway?: { path?: { lng: number; lat: number }[] }
+    taxi?: { path?: { lng: number; lat: number }[] }
   }
 
   interface TransferPlan {
@@ -256,7 +262,7 @@ declare namespace AMap {
   }
 
   class Transfer {
-    constructor(opts?: { city?: string; hideMarkers?: boolean })
+    constructor(opts?: { city?: string; cityrlt?: boolean; hideMarkers?: boolean })
     search(
       origin: [number, number],
       destination: [number, number],

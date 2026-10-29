@@ -65,7 +65,7 @@ export interface DailyLodging {
 }
 
 /** Which routing mode to use between two consecutive stops within a day. */
-export type TransportMode = 'driving' | 'walking' | 'transit' | 'riding'
+export type TransportMode = 'driving' | 'walking' | 'transit'
 
 /**
  * One branch of a day-level decision tree ("状况 → 另一套计划").

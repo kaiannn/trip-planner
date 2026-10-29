@@ -69,7 +69,12 @@ export function MapPanel({
     if (!scriptReady || !containerRef.current || !window.AMap) return
     let map: AMap.Map
     try {
-      map = new window.AMap.Map(containerRef.current, { viewMode: '2D', zoom: 4, center: [110.0, 34.0] })
+      map = new window.AMap.Map(containerRef.current, {
+        viewMode: '2D',
+        zoom: 4,
+        center: [110.0, 34.0],
+        mapStyle: 'amap://styles/whitesmoke',
+      })
     } catch (e) {
       queueMicrotask(() => reportMapError(`地图初始化异常：${e instanceof Error ? e.message : String(e)}`))
       return
