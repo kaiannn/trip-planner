@@ -63,7 +63,7 @@ export function AiCard() {
           </span>
           <span className="text-sm font-semibold text-slate-800">推荐</span>
           {isLoading && (
-            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-700">
+            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-medium text-teal-700">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-teal-500" />
               流式生成中
             </span>
@@ -78,7 +78,7 @@ export function AiCard() {
               查看发送给 AI 的 Prompt
             </span>
           </summary>
-          <pre className="max-h-28 overflow-auto whitespace-pre-wrap border-t border-slate-100 bg-white/80 p-2 font-mono text-[10px] leading-relaxed text-slate-600">
+          <pre className="max-h-28 overflow-auto whitespace-pre-wrap border-t border-slate-100 bg-white/80 p-2 font-mono text-[11px] leading-relaxed text-slate-600">
             {aiPromptText}
           </pre>
         </details>
@@ -97,7 +97,7 @@ export function AiCard() {
                   onClick={() => setOpen((o) => ({ ...o, [i]: !o[i] }))}
                 >
                   <span className="font-semibold text-slate-800">{sec.title || '未命名'}</span>
-                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">
                     {sec.type || 'other'}
                   </span>
                 </button>

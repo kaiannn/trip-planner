@@ -187,7 +187,8 @@ export function DayTimeline() {
         resetDockKey="days"
         sizeId="day-timeline-v3"
         resizable
-        defaultW={fit.defaultW}
+        // User-measured panel width (DOMRect w=542); auto-fit still used as floor when day count grows
+        defaultW={Math.max(fit.defaultW, 542)}
         defaultBodyHeight={fit.defaultH}
         minBodyHeight={fit.minH}
         minW={320}
@@ -378,16 +379,16 @@ function DayChip({
           )}
         </span>
         {nBr > 0 && (
-          <span className="rounded bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">
+          <span className="rounded bg-amber-50 px-1 py-0.5 text-[11px] font-medium text-amber-700">
             {nBr}状况
           </span>
         )}
       </div>
       {city && <div className="truncate text-[11px] text-slate-500">{city}</div>}
-      <div className="truncate text-[10px] text-slate-400">
+      <div className="truncate text-[11px] text-slate-400">
         {activeLabel ? `走「${activeLabel}」` : `${nStops} 站`}
         {active && (
-          <span className="ml-1.5 text-[10px] font-medium text-slate-900">· 选中</span>
+          <span className="ml-1.5 text-[11px] font-medium text-slate-900">· 选中</span>
         )}
       </div>
     </div>
@@ -478,12 +479,12 @@ function TreeRow({
           >
             {label}
             {active && (
-              <span className="ml-1.5 rounded bg-slate-900 px-1 py-0.5 text-[9px] font-medium text-white">
+              <span className="ml-1.5 rounded bg-slate-900 px-1 py-0.5 text-[11px] font-medium text-white">
                 当前
               </span>
             )}
           </div>
-          <div className="truncate text-[10px] text-slate-400">{preview}</div>
+          <div className="truncate text-[11px] text-slate-400">{preview}</div>
         </button>
         {onRemove && (
           <button

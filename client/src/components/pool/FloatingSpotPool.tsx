@@ -174,13 +174,13 @@ export function FloatingSpotPool() {
                       : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-white'
                   }`}
                 >
-                  <span className="shrink-0 rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-600">
+                  <span className="shrink-0 rounded bg-slate-100 px-1 py-0.5 text-[11px] text-slate-600">
                     {SPOT_KIND_LABEL[k]}
                   </span>
                   <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
                   <button
                     type="button"
-                    className="shrink-0 rounded border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-500 hover:border-sky-300 hover:text-sky-700"
+                    className="shrink-0 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-500 hover:border-sky-300 hover:text-sky-700"
                     onClick={(e) => {
                       e.stopPropagation()
                       setAssignFor(assignFor === s.id ? null : s.id)
@@ -188,13 +188,13 @@ export function FloatingSpotPool() {
                   >
                     加入
                   </button>
-                  <span className="shrink-0 text-[10px] text-slate-400">
+                  <span className="shrink-0 text-[11px] text-slate-400">
                     {cityName(s.cityId)}
                   </span>
                 </div>
                 {assignFor === s.id && (
                   <div className="mb-1 rounded-md border border-slate-200 bg-slate-50 p-1.5">
-                    <p className="mb-1 text-[10px] text-slate-500">加入到当前路径（含选中状况分支）</p>
+                    <p className="mb-1 text-[11px] text-slate-500">加入到当前路径（含选中状况分支）</p>
                     <div className="flex flex-wrap gap-1">
                       {sortedDays.map((d) => (
                         <button

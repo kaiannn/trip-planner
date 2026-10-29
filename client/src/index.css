@@ -26,9 +26,6 @@
   --font-sans:
     'Inter', 'Noto Sans SC', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
     'Segoe UI Emoji';
-  /* Serif kept as a fallback reference, but we no longer apply it anywhere. */
-  --font-serif:
-    'Inter', ui-sans-serif, system-ui, sans-serif;
 
   /* Sky blue (primary accent) — from skill Result #1.
    * 600 = #0EA5E9 (primary token); the rest are standard Tailwind sky-*
@@ -134,20 +131,32 @@ body {
 }
 
 /* ---------- Display type ----------
- * Flat design uses weight (not family) for hierarchy. .font-serif is
- * kept as an alias for font-sans so existing classNames still compile,
- * but it renders identical to body text.
+ * Flat design uses weight (not family) for hierarchy.
  */
-.font-serif {
-  font-family: var(--font-sans);
-  letter-spacing: -0.01em;
-}
-
 h1, h2 {
   font-family: var(--font-sans);
   letter-spacing: -0.02em;
   font-weight: 600;
   color: #0F172A;
+}
+
+/* ---------- Focus visibility ----------
+ * Keyboard focus ring on the sky accent; mouse clicks stay quiet.
+ */
+:focus-visible {
+  outline: 2px solid var(--color-sky-600, #0284c7);
+  outline-offset: 2px;
+}
+
+/* Respect reduced motion for CSS-driven micro-animations. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-slide,
+  .gear-hover,
+  .group:hover > .gear-hover,
+  .gear-hover:hover {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 /* ---------- AMap label wrapper reset ----------

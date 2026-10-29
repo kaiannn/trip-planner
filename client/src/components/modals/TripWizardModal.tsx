@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { TRIP_QUIZ_TREE } from '../../constants/quiz'
 import { buildTripProfileFromTags, suggestDestinationsFromProfile } from '../../lib/tripProfile'
 import { useTripStore } from '../../store'
@@ -15,6 +16,15 @@ export function TripWizardModal() {
   const quizBackFromResult = useTripStore((s) => s.quizBackFromResult)
   const appendExpectationFromQuiz = useTripStore((s) => s.appendExpectationFromQuiz)
 
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTripWizardOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, setTripWizardOpen])
+
   if (!open) return null
 
   const node = TRIP_QUIZ_TREE[quizNodeId]
@@ -23,7 +33,10 @@ export function TripWizardModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[1100] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[5000] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="旅行性格小测验"
       onClick={(e) => e.target === e.currentTarget && setTripWizardOpen(false)}
     >
       <div className="grid max-h-[90vh] w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-sky-50 to-white shadow-2xl md:grid-cols-[1.4fr_1fr]">

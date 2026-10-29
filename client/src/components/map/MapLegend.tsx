@@ -20,7 +20,7 @@ export function MapLegend({
       {items.map((item) => (
         <div
           key={item.key}
-          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200/80 bg-white/90 px-1.5 py-0.5 text-[11px] text-slate-600 shadow-sm backdrop-blur-sm"
+          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200/80 bg-white/95 px-1.5 py-0.5 text-[11px] text-slate-600 shadow-sm backdrop-blur-sm"
         >
           <span
             className="h-0.5 w-3.5 rounded-full"
@@ -36,7 +36,7 @@ export function MapLegend({
         <button
           type="button"
           onClick={onResetView}
-          className="pointer-events-auto rounded-md border border-slate-200/90 bg-white/90 px-2 py-0.5 text-[11px] font-medium text-slate-700 shadow-sm transition hover:bg-white"
+          className="pointer-events-auto rounded-md border border-slate-200/90 bg-white/95 px-2 py-0.5 text-[11px] font-medium text-slate-700 shadow-sm transition hover:bg-sky-50"
           title="清除焦点，缩回总览"
         >
           重置视图

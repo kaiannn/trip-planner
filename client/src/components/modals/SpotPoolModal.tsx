@@ -58,6 +58,15 @@ export function SpotPoolModal() {
     }
   }, [sortedCities, spotCityId])
 
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSpotPoolOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, setSpotPoolOpen])
+
   const coordsObj = pendingMapCoords
   if (coordsObj && open && coordsObj !== appliedCoordsKey) {
     setAppliedCoordsKey(coordsObj)
@@ -122,7 +131,10 @@ export function SpotPoolModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[5000] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="景点池"
       onClick={(e) => e.target === e.currentTarget && setSpotPoolOpen(false)}
     >
       <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">

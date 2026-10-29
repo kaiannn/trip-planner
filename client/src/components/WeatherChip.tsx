@@ -90,7 +90,7 @@ export function WeatherChip({
   if (loaded && !snap) {
     return (
       <span
-        className="inline-flex items-center gap-0.5 rounded-md bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-400"
+        className="inline-flex items-center gap-0.5 rounded-md bg-slate-50 px-1.5 py-0.5 text-[11px] text-slate-400"
         title="高德天气仅支持 4 天内预报"
       >
         🌐 预报不可用
@@ -103,7 +103,7 @@ export function WeatherChip({
   const icon = iconFor(snap.dayweather || snap.nightweather)
   return (
     <span
-      className="inline-flex items-center gap-0.5 rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 ring-1 ring-sky-200"
+      className="inline-flex items-center gap-0.5 rounded-md bg-sky-50 px-1.5 py-0.5 text-[11px] font-medium text-sky-700 ring-1 ring-sky-200"
       title={`${snap.dayweather} / ${snap.nightweather}`}
     >
       <span>{icon}</span>

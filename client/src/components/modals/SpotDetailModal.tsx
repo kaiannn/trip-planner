@@ -55,6 +55,15 @@ export function SpotDetailModal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spot?.id])
 
+  useEffect(() => {
+    if (!spot) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSpotDetail(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [spot, setSpotDetail])
+
   if (!spot || !draft) return null
 
   const kind = spotKind(draft)
@@ -181,7 +190,10 @@ export function SpotDetailModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[1100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[5000] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`编辑${SPOT_KIND_LABEL[kind]}`}
       onClick={(e) => e.target === e.currentTarget && setSpotDetail(null)}
     >
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
@@ -218,7 +230,8 @@ export function SpotDetailModal() {
             <Btn
               variant="primary"
               onClick={handleSave}
-              className={dirty ? '' : 'opacity-50'}
+              disabled={!dirty}
+              title={dirty ? '保存修改' : '没有未保存的修改'}
             >
               保存
             </Btn>

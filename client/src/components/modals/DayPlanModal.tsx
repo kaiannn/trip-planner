@@ -202,7 +202,7 @@ export function DayPlanPanel() {
         >
           <div className="flex items-center justify-between border-b border-slate-100 px-2.5 py-1.5">
             <span className="text-[11px] font-semibold text-slate-700">当日站点</span>
-            <span className="text-[10px] text-slate-400">
+            <span className="text-[11px] text-slate-400">
               {listDragOver ? '松开加入' : '可从景点池拖入'}
             </span>
           </div>
@@ -271,10 +271,10 @@ export function DayPlanPanel() {
                       setMapFocusSpotId(sid)
                     }}
                   >
-                    <span className="w-4 shrink-0 text-[10px] tabular-nums text-slate-400">
+                    <span className="w-4 shrink-0 text-[11px] tabular-nums text-slate-400">
                       {i + 1}
                     </span>
-                    <span className="shrink-0 rounded bg-slate-100 px-1 py-0.5 text-[9px] text-slate-600">
+                    <span className="shrink-0 rounded bg-slate-100 px-1 py-0.5 text-[11px] text-slate-600">
                       {SPOT_KIND_LABEL[k]}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-800">
@@ -284,7 +284,7 @@ export function DayPlanPanel() {
                   <div className="flex shrink-0 items-center gap-0.5">
                     <button
                       type="button"
-                      className="rounded px-1 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+                      className="rounded px-1 py-0.5 text-[11px] text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
                       disabled={i === 0}
                       onClick={() => move(i, i - 1)}
                       aria-label="上移"
@@ -293,7 +293,7 @@ export function DayPlanPanel() {
                     </button>
                     <button
                       type="button"
-                      className="rounded px-1 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+                      className="rounded px-1 py-0.5 text-[11px] text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
                       disabled={i === activeOrder.length - 1}
                       onClick={() => move(i, i + 1)}
                       aria-label="下移"
@@ -302,7 +302,7 @@ export function DayPlanPanel() {
                     </button>
                     <button
                       type="button"
-                      className="rounded px-1 py-0.5 text-[10px] text-slate-300 hover:bg-red-50 hover:text-red-500"
+                      className="rounded px-1 py-0.5 text-[11px] text-slate-300 hover:bg-red-50 hover:text-red-500"
                       onClick={() => removeSpotFromDay(sid, day.id)}
                       aria-label="移出当天"
                     >
@@ -326,7 +326,7 @@ export function DayPlanPanel() {
           {!selected && (
             <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center text-slate-400">
               <p className="text-[12px]">选择左侧景点查看详情</p>
-              <p className="text-[10px]">完整字段见 issue #31</p>
+              <p className="text-[11px]">完整字段见 issue #31</p>
             </div>
           )}
           {selected && (
@@ -336,7 +336,7 @@ export function DayPlanPanel() {
                   <h3 className="text-[14px] font-semibold text-slate-900">
                     {selected.name}
                   </h3>
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
                     {SPOT_KIND_LABEL[spotKind(selected)]}
                   </span>
                 </div>
@@ -350,7 +350,7 @@ export function DayPlanPanel() {
 
               {selected.description && (
                 <div>
-                  <div className="mb-0.5 text-[10px] font-medium text-slate-500">备注</div>
+                  <div className="mb-0.5 text-[11px] font-medium text-slate-500">备注</div>
                   <p className="rounded-lg bg-slate-50 p-2 text-[12px] leading-relaxed text-slate-700">
                     {selected.description}
                   </p>
@@ -359,21 +359,21 @@ export function DayPlanPanel() {
 
               {selected.innerTransport && (
                 <div>
-                  <div className="mb-0.5 text-[10px] font-medium text-slate-500">交通</div>
+                  <div className="mb-0.5 text-[11px] font-medium text-slate-500">交通</div>
                   <p className="text-[12px] text-slate-700">{selected.innerTransport}</p>
                 </div>
               )}
 
               {'visitTimeText' in selected && selected.visitTimeText && (
                 <div>
-                  <div className="mb-0.5 text-[10px] font-medium text-slate-500">建议时间</div>
+                  <div className="mb-0.5 text-[11px] font-medium text-slate-500">建议时间</div>
                   <p className="text-[12px] text-slate-700">{selected.visitTimeText}</p>
                 </div>
               )}
 
               {'price' in selected && selected.price && (
                 <div>
-                  <div className="mb-0.5 text-[10px] font-medium text-slate-500">价格</div>
+                  <div className="mb-0.5 text-[11px] font-medium text-slate-500">价格</div>
                   <p className="text-[12px] text-slate-700">{selected.price}</p>
                 </div>
               )}

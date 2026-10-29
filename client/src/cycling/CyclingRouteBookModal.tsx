@@ -71,6 +71,15 @@ export function CyclingRouteBookModal() {
     if (!speedFocused) setSpeedDraft(String(avgSpeedKmh))
   }, [avgSpeedKmh, speedFocused])
 
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, setOpen])
+
   const speedForEst = resolveSpeedDraft(speedFocused ? speedDraft : '', avgSpeedKmh)
 
   const commitSpeed = () => {
@@ -116,9 +125,14 @@ export function CyclingRouteBookModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col bg-[#f3ecdc]/98 backdrop-blur-sm">
-      <header className="flex flex-wrap items-center gap-2 border-b border-slate-300/50 bg-[#ede3cf] px-4 py-2.5 shadow-sm">
-        <h2 className="font-serif text-[15px] font-bold text-slate-900">骑行路书</h2>
+    <div
+      className="fixed inset-0 z-[5000] flex flex-col bg-sky-50/98 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="骑行路书"
+    >
+      <header className="flex flex-wrap items-center gap-2 border-b border-slate-200/80 bg-white px-4 py-2.5 shadow-sm">
+        <h2 className="text-[15px] font-bold tracking-tight text-slate-900">骑行路书</h2>
         <input
           className={`${inputClass} !w-auto min-w-[140px] max-w-[220px] flex-1`}
           value={title}
@@ -160,8 +174,8 @@ export function CyclingRouteBookModal() {
       <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 lg:flex-row">
         {/* Left: stops */}
         <aside className="flex w-full flex-col gap-3 overflow-auto lg:w-[360px] lg:shrink-0">
-          <section className="rounded-xl border border-slate-200/80 bg-[#f8f2e4] p-3">
-            <h3 className="mb-2 border-b border-slate-200/60 pb-1.5 font-serif text-[13px] font-semibold text-slate-800">
+          <section className="rounded-xl border border-slate-200/80 bg-white p-3">
+            <h3 className="mb-2 border-b border-slate-200/60 pb-1.5 text-[13px] font-semibold tracking-tight text-slate-800">
               汇总
             </h3>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[12px] text-slate-700">
@@ -230,9 +244,9 @@ export function CyclingRouteBookModal() {
             <p className="text-[12px] text-red-600">{planError}</p>
           )}
 
-          <section className="rounded-xl border border-slate-200/80 bg-[#f8f2e4] p-3">
+          <section className="rounded-xl border border-slate-200/80 bg-white p-3">
             <div className="mb-2 flex items-center justify-between border-b border-slate-200/60 pb-1.5">
-              <h3 className="font-serif text-[13px] font-semibold text-slate-800">
+              <h3 className="text-[13px] font-semibold tracking-tight text-slate-800">
                 节点（{stops.length}）
               </h3>
               <Btn
@@ -280,7 +294,7 @@ export function CyclingRouteBookModal() {
                         placeholder="搜索并选择地点…"
                       />
                       {stop.location && (
-                        <p className="text-[10px] text-slate-400 tabular-nums">
+                        <p className="text-[11px] text-slate-400 tabular-nums">
                           {stop.location.lat.toFixed(5)}, {stop.location.lng.toFixed(5)}
                           {stop.address ? ` · ${stop.address}` : ''}
                         </p>
@@ -335,8 +349,8 @@ export function CyclingRouteBookModal() {
           </section>
 
           {segments.length > 0 && (
-            <section className="rounded-xl border border-slate-200/80 bg-[#f8f2e4] p-3">
-              <h3 className="mb-2 border-b border-slate-200/60 pb-1.5 font-serif text-[13px] font-semibold text-slate-800">
+            <section className="rounded-xl border border-slate-200/80 bg-white p-3">
+              <h3 className="mb-2 border-b border-slate-200/60 pb-1.5 text-[13px] font-semibold tracking-tight text-slate-800">
                 分段
               </h3>
               <ul className="space-y-1 text-[12px] text-slate-700">
@@ -369,7 +383,7 @@ export function CyclingRouteBookModal() {
           {nearbyAnchorStopId && (
             <section className="rounded-xl border border-teal-200 bg-white/90 p-3 shadow-sm">
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <h3 className="font-serif text-[13px] font-semibold text-slate-800">
+                <h3 className="text-[13px] font-semibold tracking-tight text-slate-800">
                   周边搜索
                 </h3>
                 <div className="flex flex-wrap gap-1">
