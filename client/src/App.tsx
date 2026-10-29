@@ -10,6 +10,7 @@ import { useSettingsStore } from './store/settingsStore'
 import { seedWebServiceKeyFromEnv } from './lib/amapKey'
 import { useTripStore } from './store'
 import { CyclingRouteBookModal } from './cycling/CyclingRouteBookModal'
+import { ToastHost } from './components/feedback/ToastHost'
 
 export default function App() {
   const checkKeys = useSettingsStore((s) => s.checkKeys)
@@ -40,6 +41,7 @@ export default function App() {
       <SpotDetailModal />
       <SettingsModal />
       <CyclingRouteBookModal />
+      <ToastHost />
     </div>
   )
 }

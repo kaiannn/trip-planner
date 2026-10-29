@@ -22,6 +22,7 @@ export function FloatingSpotPool() {
   const setMapFocusSpotId = useTripStore((s) => s.setMapFocusSpotId)
   const setSpotDetail = useTripStore((s) => s.setSpotDetail)
   const setSpotPoolOpen = useTripStore((s) => s.setSpotPoolOpen)
+  const setAiSeedOpen = useTripStore((s) => s.setAiSeedOpen)
   const mapFocusSpotId = useTripStore((s) => s.mapFocusSpotId)
   const assignSpotToActivePath = useTripStore((s) => s.assignSpotToActivePath)
   const dayPlanOpen = useTripStore((s) => s.dayPlanOpen)
@@ -64,7 +65,7 @@ export function FloatingSpotPool() {
   return (
     <FloatingPanel
       title="景点池"
-      subtitle={`${unassigned.length} 未分配 · 拖标题移动 · 拖角调大小`}
+      subtitle={`${unassigned.length} 未分配`}
       collapsed={collapsed}
       onToggleCollapse={() => setCollapsed((c) => !c)}
       defaultDock={dayPlanOpen ? 'tl' : 'tr'}
@@ -129,9 +130,20 @@ export function FloatingSpotPool() {
       </div>
 
       {filtered.length === 0 ? (
-        <p className="py-6 text-center text-[12px] text-slate-400">
-          {spots.length === 0 ? '景点池为空' : '全部已分配'}
-        </p>
+        <div className="py-6 text-center">
+          <p className="text-[12px] text-slate-500">
+            {spots.length === 0 ? '景点池为空' : '全部已分配'}
+          </p>
+          {spots.length === 0 && (
+            <button
+              type="button"
+              onClick={() => setAiSeedOpen(true)}
+              className="mt-2 rounded-md border border-teal-200 px-2.5 py-1 text-[12px] font-medium text-teal-700 transition hover:border-teal-300 hover:bg-teal-50"
+            >
+              用 AI 推荐景点
+            </button>
+          )}
+        </div>
       ) : (
         <ul className="space-y-0.5">
           {filtered.map((s) => {

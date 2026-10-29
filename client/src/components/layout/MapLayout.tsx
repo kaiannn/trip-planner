@@ -2,6 +2,7 @@ import { MapPanel } from '../MapPanel'
 import { DayTimeline } from '../timeline/DayTimeline'
 import { FloatingSpotPool } from '../pool/FloatingSpotPool'
 import { DayPlanPanel } from '../modals/DayPlanModal'
+import { EmptyTripCta } from '../onboarding/EmptyTripCta'
 
 /**
  * Map-first layout: the map owns the full remaining viewport.
@@ -12,6 +13,7 @@ export function MapLayout() {
   return (
     <div className="absolute inset-0">
       <MapPanel className="absolute inset-0" />
+      <EmptyTripCta />
       <FloatingSpotPool />
       <DayTimeline />
       <DayPlanPanel />
