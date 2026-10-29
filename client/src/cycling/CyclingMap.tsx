@@ -25,6 +25,7 @@ export function CyclingMap({ className }: { className?: string }) {
     mapRef.current = new window.AMap!.Map(containerRef.current, {
       zoom: 11,
       viewMode: '2D',
+      mapStyle: 'amap://styles/whitesmoke',
     })
     return () => {
       mapRef.current?.destroy()
@@ -53,7 +54,7 @@ export function CyclingMap({ className }: { className?: string }) {
     if (plannedPath.length >= 2) {
       const poly = new window.AMap!.Polyline({
         path: plannedPath,
-        strokeColor: '#0d9488',
+        strokeColor: '#0284C7',
         strokeWeight: 5,
         strokeOpacity: 0.9,
         strokeStyle: 'solid',

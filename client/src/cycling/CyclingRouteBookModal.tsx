@@ -229,7 +229,7 @@ export function CyclingRouteBookModal() {
           </section>
 
           {statusMsg && (
-            <p className="text-[12px] text-teal-700">{statusMsg}</p>
+            <p className="text-[12px] text-sky-700">{statusMsg}</p>
           )}
           {planError && (
             <p className="text-[12px] text-red-600">{planError}</p>
@@ -372,7 +372,7 @@ export function CyclingRouteBookModal() {
           <CyclingMap className="min-h-[280px] flex-1 lg:min-h-0" />
 
           {nearbyAnchorStopId && (
-            <section className="rounded-xl border border-teal-200 bg-white/90 p-3 shadow-sm">
+            <section className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm">
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <h3 className="text-[13px] font-semibold tracking-tight text-slate-800">
                   周边搜索
@@ -388,7 +388,7 @@ export function CyclingRouteBookModal() {
                       }}
                       className={`rounded-full px-2 py-0.5 text-[11px] ${
                         nearbyKind === p.kind
-                          ? 'bg-teal-600 text-white'
+                          ? 'bg-sky-600 text-white'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
