@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 const STORAGE_KEY = 'trip-planner-panel-sizes'
+const POS_STORAGE_KEY = 'trip-planner-panel-positions'
 
 export type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se'
 export type ResizeEdge = 'n' | 'e' | 's' | 'w'
@@ -15,6 +16,12 @@ export interface PanelSizeLimits {
 export interface PanelSize {
   w: number
   h: number
+}
+
+export interface PanelPos {
+  /** Parent-space left/top */
+  x: number
+  y: number
 }
 
 export interface PanelRect {
@@ -49,6 +56,42 @@ function writeStored(id: string, size: PanelSize) {
     const all = raw ? (JSON.parse(raw) as Record<string, PanelSize>) : {}
     all[id] = size
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readStoredPanelPos(id: string): PanelPos | null {
+  try {
+    const raw = localStorage.getItem(POS_STORAGE_KEY)
+    if (!raw) return null
+    const all = JSON.parse(raw) as Record<string, PanelPos>
+    const v = all[id]
+    if (v && Number.isFinite(v.x) && Number.isFinite(v.y)) return v
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+export function writeStoredPanelPos(id: string, pos: PanelPos) {
+  try {
+    const raw = localStorage.getItem(POS_STORAGE_KEY)
+    const all = raw ? (JSON.parse(raw) as Record<string, PanelPos>) : {}
+    all[id] = { x: Math.round(pos.x), y: Math.round(pos.y) }
+    localStorage.setItem(POS_STORAGE_KEY, JSON.stringify(all))
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearStoredPanelPos(id: string) {
+  try {
+    const raw = localStorage.getItem(POS_STORAGE_KEY)
+    if (!raw) return
+    const all = JSON.parse(raw) as Record<string, PanelPos>
+    delete all[id]
+    localStorage.setItem(POS_STORAGE_KEY, JSON.stringify(all))
   } catch {
     /* ignore */
   }
@@ -115,6 +158,7 @@ export function usePanelSize(opts: {
       rect: PanelRect,
       apply: (s: { w: number; h: number; x: number; y: number }) => void,
     ) => {
+      if (e.button !== 0) return
       e.preventDefault()
       e.stopPropagation()
       const startX = e.clientX
@@ -220,6 +264,7 @@ export function usePanelSize(opts: {
       rect: PanelRect,
       apply: (s: { w: number; h: number; x: number; y: number }) => void,
     ) => {
+      if (e.button !== 0) return
       e.preventDefault()
       e.stopPropagation()
       const startX = e.clientX

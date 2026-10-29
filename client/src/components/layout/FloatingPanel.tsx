@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type ReactNode } from 'react'
 import clsx from 'clsx'
-import { usePanelSize, type PanelRect, type ResizeCorner } from '../../hooks/usePanelSize'
+import {
+  usePanelSize,
+  readStoredPanelPos,
+  writeStoredPanelPos,
+  clearStoredPanelPos,
+  type PanelRect,
+  type ResizeCorner,
+} from '../../hooks/usePanelSize'
 
 type Dock = 'tl' | 'tr' | 'bl' | 'br'
 
@@ -101,6 +108,7 @@ export function FloatingPanel({
 }: FloatingPanelProps) {
   const elRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const posId = sizeId ?? 'panel'
 
   const parentSize = useParentSize(elRef, Boolean(resizable))
   const limits = useMemo(() => {
@@ -125,11 +133,33 @@ export function FloatingPanel({
 
   const sized = resizable
 
+  // Clear floating pos when dock reset key changes — but NOT on first mount
+  // (otherwise every reload would wipe the saved default position).
+  const firstDockReset = useRef(true)
   useEffect(() => {
+    if (firstDockReset.current) {
+      firstDockReset.current = false
+      return
+    }
     setPos(null)
-  }, [resetDockKey])
+    clearStoredPanelPos(posId)
+  }, [resetDockKey, posId])
 
-  // Raise panel when content needs more room (e.g. decision tree opens)
+  // Restore last dragged position once parent size is known (once)
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (!resizable || !parentSize || restoredRef.current) return
+    restoredRef.current = true
+    const stored = readStoredPanelPos(posId)
+    if (!stored) return
+    const maxX = Math.max(0, parentSize.w - size.w)
+    const maxY = Math.max(0, parentSize.h - size.h)
+    setPos({
+      x: Math.min(maxX, Math.max(0, stored.x)),
+      y: Math.min(maxY, Math.max(0, stored.y)),
+    })
+  }, [resizable, parentSize, posId, size.w, size.h])
+
   useEffect(() => {
     if (!resizable || collapsed) return
     const floor = Math.min(minBodyHeight, limits.maxH)
@@ -159,6 +189,8 @@ export function FloatingPanel({
 
   const onGripMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      // Right/middle click must not start a drag — otherwise the panel sticks to the cursor
+      if (e.button !== 0) return
       if ((e.target as HTMLElement).closest('button')) return
       e.preventDefault()
       e.stopPropagation()
@@ -171,6 +203,7 @@ export function FloatingPanel({
       const startX = e.clientX
       const startY = e.clientY
       let moved = false
+      let last = { x: origX, y: origY }
 
       const onMove = (ev: MouseEvent) => {
         const dx = ev.clientX - startX
@@ -178,20 +211,22 @@ export function FloatingPanel({
         if (Math.abs(dx) + Math.abs(dy) > 3) moved = true
         const maxX = Math.max(0, r.parentW - r.w)
         const maxY = Math.max(0, r.parentH - r.h)
-        setPos({
+        last = {
           x: Math.min(maxX, Math.max(0, origX + dx)),
           y: Math.min(maxY, Math.max(0, origY + dy)),
-        })
+        }
+        setPos(last)
       }
       const onUp = () => {
         document.removeEventListener('mousemove', onMove)
         document.removeEventListener('mouseup', onUp)
-        if (!moved) onToggleCollapse()
+        if (moved) writeStoredPanelPos(posId, last)
+        else onToggleCollapse()
       }
       document.addEventListener('mousemove', onMove)
       document.addEventListener('mouseup', onUp)
     },
-    [getRect, onToggleCollapse],
+    [getRect, onToggleCollapse, posId],
   )
 
   const applyResize = useCallback(
@@ -202,6 +237,7 @@ export function FloatingPanel({
   )
 
   const startResize = (corner: ResizeCorner) => (e: React.MouseEvent) => {
+    if (e.button !== 0) return
     const r = getRect()
     if (!r) return
     // Anchor left/top in parent space before resize
@@ -210,6 +246,7 @@ export function FloatingPanel({
   }
 
   const startEdge = (edge: 'n' | 's' | 'e' | 'w') => (e: React.MouseEvent) => {
+    if (e.button !== 0) return
     const r = getRect()
     if (!r) return
     setPos({ x: r.left, y: r.top })
@@ -295,25 +332,12 @@ export function FloatingPanel({
               onMouseDown={startResize(c)}
               className={clsx('absolute z-10 h-3.5 w-3.5', CORNER_CLASS[c])}
               title="拖角调整大小"
-            >
-              {c === 'se' && (
-                <div className="absolute bottom-0.5 right-0.5 h-2 w-2 border-b-2 border-r-2 border-slate-400/80" />
-              )}
-              {c === 'sw' && (
-                <div className="absolute bottom-0.5 left-0.5 h-2 w-2 border-b-2 border-l-2 border-slate-400/80" />
-              )}
-              {c === 'ne' && (
-                <div className="absolute right-0.5 top-0.5 h-2 w-2 border-r-2 border-t-2 border-slate-400/80" />
-              )}
-              {c === 'nw' && (
-                <div className="absolute left-0.5 top-0.5 h-2 w-2 border-l-2 border-t-2 border-slate-400/80" />
-              )}
-            </div>
+            />
           ))}
           <button
             type="button"
             onClick={resetSize}
-            className="absolute bottom-1 left-1 z-10 rounded bg-slate-100/90 px-1 text-[9px] text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
+            className="absolute bottom-1 left-1 z-10 rounded bg-slate-100/90 px-1 text-[11px] text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
             title="恢复默认大小"
           >
             复位
