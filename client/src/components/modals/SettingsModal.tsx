@@ -146,7 +146,7 @@ export function SettingsModal() {
             </Field>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
               高德控制台 → 应用 → 添加 Key → 服务平台选「<strong className="font-medium text-slate-500">Web 服务</strong>」。
-              与地图用的「Web 端」Key <strong className="font-medium text-slate-500">不是同一个</strong>；填错会报 USERKEY_PLAT_NOMATCH。
+              与地图用的「Web 端」Key <strong className="font-medium text-slate-500">不是同一个</strong>；填错时会看到 USERKEY_PLAT_NOMATCH。
               也可用环境变量 <code className="rounded bg-slate-100 px-1">VITE_AMAP_WEBSERVICE_KEY</code>。
             </p>
           </div>

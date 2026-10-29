@@ -151,7 +151,7 @@ export function DayTimeline() {
               setMenu(null)
             }}
           >
-            展开决策树
+            展开状况
           </button>
           <button
             type="button"
@@ -180,7 +180,7 @@ export function DayTimeline() {
 
       <FloatingPanel
         title="日程"
-        subtitle={`${sortedDays.length} 天${branchCount ? ` · ${branchCount} 个状况` : ''} · 双击天整理 · 右键加状况`}
+        subtitle={`${sortedDays.length} 天${branchCount ? ` · ${branchCount} 个状况` : ''} · 点选查看 · 拖入分配`}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}
         defaultDock="bl"
@@ -205,9 +205,9 @@ export function DayTimeline() {
                 setExpanded((v) => !v)
               }}
               className="shrink-0 rounded border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600 hover:border-slate-400 hover:text-slate-900"
-              title={expanded ? '收起决策树' : '展开决策树'}
+              title={expanded ? '收起状况方案' : '展开当天状况（天气等备用走法）'}
             >
-              {expanded ? '收起树' : '决策树'}
+              {expanded ? '收起' : '状况'}
             </button>
           ) : null
         }
@@ -249,7 +249,10 @@ export function DayTimeline() {
             <div data-tree-body className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
               <div className="mb-2 flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-slate-700">
-                  第 {focusedDay.dayIndex} 天 · 决策树
+                  第 {focusedDay.dayIndex} 天 · 状况方案
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  按天气或突发情况准备的另一套走法
                 </span>
                 <button
                   type="button"

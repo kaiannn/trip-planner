@@ -115,7 +115,7 @@ export function DayPlanPanel() {
   return (
     <FloatingPanel
       title={`第 ${day.dayIndex} 天 · 整理行程`}
-      subtitle={`${city?.name || '未分配城市'} · 「${branchLabel}」 · ${activeOrder.length} 站 · 拖角调大小`}
+      subtitle={`${city?.name || '未分配城市'} · 「${branchLabel}」 · ${activeOrder.length} 站 · 拖入景点即可分配`}
       collapsed={collapsed}
       onToggleCollapse={() => setCollapsed((c) => !c)}
       defaultDock="tr"
@@ -326,7 +326,7 @@ export function DayPlanPanel() {
           {!selected && (
             <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center text-slate-400">
               <p className="text-[12px]">选择左侧景点查看详情</p>
-              <p className="text-[11px]">完整字段见 issue #31</p>
+              <p className="text-[11px]">双击景点可编辑完整信息</p>
             </div>
           )}
           {selected && (
