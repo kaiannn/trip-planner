@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PlaceAutoComplete, type PlaceAutoCompleteValue } from '../components/PlaceAutoComplete'
 import { Btn, Field, inputClass } from '../components/ui'
+import { Modal } from '../components/layout/Modal'
 import { useSettingsStore } from '../store/settingsStore'
 import { CyclingMap } from './CyclingMap'
 import {
@@ -71,15 +72,6 @@ export function CyclingRouteBookModal() {
     if (!speedFocused) setSpeedDraft(String(avgSpeedKmh))
   }, [avgSpeedKmh, speedFocused])
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, setOpen])
-
   const speedForEst = resolveSpeedDraft(speedFocused ? speedDraft : '', avgSpeedKmh)
 
   const commitSpeed = () => {
@@ -97,8 +89,6 @@ export function CyclingRouteBookModal() {
     () => addMinutesToTime(departTime, estSec / 60),
     [departTime, estSec],
   )
-
-  if (!open) return null
 
   const canPlan = hasLocatedEndpoints(stops) && !planning
 
@@ -125,11 +115,12 @@ export function CyclingRouteBookModal() {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[5000] flex flex-col bg-sky-50/98 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label="骑行路书"
+    <Modal
+      open={open}
+      onClose={() => setOpen(false)}
+      label="骑行路书"
+      fullScreen
+      closeOnBackdrop={false}
     >
       <header className="flex flex-wrap items-center gap-2 border-b border-slate-200/80 bg-white px-4 py-2.5 shadow-sm">
         <h2 className="text-[15px] font-bold tracking-tight text-slate-900">骑行路书</h2>
@@ -459,6 +450,6 @@ export function CyclingRouteBookModal() {
           )}
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }

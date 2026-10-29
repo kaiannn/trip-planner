@@ -11,6 +11,7 @@ import {
   spotKind,
 } from '../../lib/spotKind'
 import type { Spot, SpotKind } from '../../types'
+import { Modal } from '../layout/Modal'
 
 /**
  * Spot detail + full editor.
@@ -54,15 +55,6 @@ export function SpotDetailModal() {
     setDraft(spot ? (spot as DraftSpot) : null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spot?.id])
-
-  useEffect(() => {
-    if (!spot) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSpotDetail(null)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [spot, setSpotDetail])
 
   if (!spot || !draft) return null
 
@@ -189,14 +181,12 @@ export function SpotDetailModal() {
   const xhsJoined = (draft.xiaohongshuUrls ?? []).join('\n')
 
   return (
-    <div
-      className="fixed inset-0 z-[5000] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`编辑${SPOT_KIND_LABEL[kind]}`}
-      onClick={(e) => e.target === e.currentTarget && setSpotDetail(null)}
+    <Modal
+      open
+      onClose={() => setSpotDetail(null)}
+      label={`编辑${SPOT_KIND_LABEL[kind]}`}
+      panelClassName="max-w-2xl"
     >
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <header className="sticky top-0 flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/95 px-4 py-3 backdrop-blur">
           <div className="min-w-0">
             <h3 className="truncate text-base font-semibold text-slate-900">
@@ -458,8 +448,7 @@ export function SpotDetailModal() {
             )}
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }
 

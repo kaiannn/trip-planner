@@ -5,6 +5,7 @@ import { Btn, Field } from '../ui'
 import { SpotImage } from '../SpotImage'
 import { PlaceAutoComplete } from '../PlaceAutoComplete'
 import type { Spot } from '../../types'
+import { Modal } from '../layout/Modal'
 
 export function SpotPoolModal() {
   const open = useTripStore((s) => s.spotPoolOpen)
@@ -127,17 +128,13 @@ export function SpotPoolModal() {
     if (ok) resetForm()
   }
 
-  if (!open) return null
-
   return (
-    <div
-      className="fixed inset-0 z-[5000] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label="景点池"
-      onClick={(e) => e.target === e.currentTarget && setSpotPoolOpen(false)}
+    <Modal
+      open={open}
+      onClose={() => setSpotPoolOpen(false)}
+      label="景点池"
+      panelClassName="max-w-4xl"
     >
-      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <header className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
           <h2 className="text-lg font-semibold text-slate-800">景点池</h2>
           <Btn variant="secondary" onClick={() => setSpotPoolOpen(false)}>
@@ -322,7 +319,6 @@ export function SpotPoolModal() {
             ))}
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

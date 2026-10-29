@@ -1,6 +1,7 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import { useTripStore } from '../store'
 import { Btn } from './ui'
+import { Modal } from './layout/Modal'
 
 /**
  * AI recommend dialog — Header button → centered modal
@@ -19,7 +20,6 @@ export function AiSeedModal() {
   const spots = useTripStore((s) => s.spots)
   const dailyPlans = useTripStore((s) => s.dailyPlans)
   const loadDemoData = useTripStore((s) => s.loadDemoData)
-  const clearTrip = useTripStore((s) => s.clearTrip)
   const resetQuiz = useTripStore((s) => s.resetQuiz)
   const setTripWizardOpen = useTripStore((s) => s.setTripWizardOpen)
 
@@ -36,32 +36,18 @@ export function AiSeedModal() {
 
   const close = useCallback(() => setAiSeedOpen(false), [setAiSeedOpen])
 
-  useEffect(() => {
-    if (!aiSeedOpen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [aiSeedOpen, close])
-
   const handleRun = useCallback(() => {
     if (!loading) void seedPoolFromAi()
   }, [loading, seedPoolFromAi])
 
-  if (!aiSeedOpen) return null
-
   return (
-    <div
-      className="fixed inset-0 z-[5000] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close()
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="AI 推荐景点"
+    <Modal
+      open={aiSeedOpen}
+      onClose={close}
+      label="AI 推荐景点"
+      panelClassName="max-w-lg overflow-hidden"
     >
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div className="w-full overflow-hidden rounded-none border-0 bg-white shadow-none">
         <header className="flex items-baseline justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3">
           <div>
             <h2 className="text-base font-semibold text-slate-900">AI 推荐景点</h2>
@@ -131,7 +117,7 @@ export function AiSeedModal() {
               <span className="text-slate-500">还没想好？</span>
               <button
                 type="button"
-                className="font-medium text-teal-700 hover:underline"
+                className="font-medium text-sky-700 hover:underline"
                 onClick={() => {
                   resetQuiz()
                   setTripWizardOpen(true)
@@ -143,7 +129,7 @@ export function AiSeedModal() {
               {import.meta.env.DEV && (
                 <button
                   type="button"
-                  className="font-medium text-teal-700 hover:underline"
+                  className="font-medium text-sky-700 hover:underline"
                   onClick={() => loadDemoData()}
                 >
                   加载示例数据
@@ -151,22 +137,8 @@ export function AiSeedModal() {
               )}
             </div>
           )}
-
-          {!isEmpty && (
-            <div className="flex justify-end border-t border-slate-100 pt-2">
-              <button
-                type="button"
-                className="text-[11px] font-medium text-slate-400 hover:text-red-500"
-                onClick={() => {
-                  if (window.confirm('确定清空所有行程数据？此操作不可撤销。')) clearTrip()
-                }}
-              >
-                清空行程
-              </button>
-            </div>
-          )}
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
