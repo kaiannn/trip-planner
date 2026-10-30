@@ -41,11 +41,15 @@ export function AiCard() {
   const aiStatus = useTripStore((s) => s.aiStatus)
   const aiPromptText = useTripStore((s) => s.aiPromptText)
   const aiSections = useTripStore((s) => s.aiSections)
+  const aiDirty = useTripStore((s) => s.aiDirty)
+  const requestAiRecommendations = useTripStore((s) => s.requestAiRecommendations)
   const applyAiSpotItem = useTripStore((s) => s.applyAiSpotItem)
   const applyAiLodgingItem = useTripStore((s) => s.applyAiLodgingItem)
+  const hasCities = useTripStore((s) => s.cities.length > 0)
   const [open, setOpen] = useState<Record<number, boolean>>({})
   const isLoading = useIsAiLoading()
   const showSkeleton = isLoading && aiSections.length === 0
+  const canRefresh = !isLoading && hasCities
 
   return (
     <div
@@ -62,12 +66,28 @@ export function AiCard() {
             AI
           </span>
           <span className="text-sm font-semibold text-slate-800">推荐</span>
-          {isLoading && (
-            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-medium text-teal-700">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-teal-500" />
-              流式生成中
+          {aiDirty && !isLoading && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200/80">
+              待刷新
             </span>
           )}
+          <div className="ml-auto flex items-center gap-1.5">
+            {isLoading && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-medium text-teal-700">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-teal-500" />
+                流式生成中
+              </span>
+            )}
+            <button
+              type="button"
+              className="rounded-md border border-slate-200/90 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-teal-300 hover:text-teal-700 disabled:opacity-50"
+              onClick={() => void requestAiRecommendations('all')}
+              disabled={!canRefresh}
+              title={aiDirty ? '行程已变更，手动刷新推荐（会调用 LLM）' : '重新生成推荐（会调用 LLM）'}
+            >
+              刷新
+            </button>
+          </div>
         </div>
       </div>
       <div className="max-h-[min(48vh,420px)] space-y-3 overflow-y-auto p-3 text-sm">

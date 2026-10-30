@@ -3,6 +3,7 @@ import { DayTimeline } from '../timeline/DayTimeline'
 import { FloatingSpotPool } from '../pool/FloatingSpotPool'
 import { DayPlanPanel } from '../modals/DayPlanModal'
 import { EmptyTripCta } from '../onboarding/EmptyTripCta'
+import { AiCard } from '../AiCard'
 
 /**
  * Map-first layout: the map owns the full remaining viewport.
@@ -17,6 +18,7 @@ export function MapLayout() {
       <FloatingSpotPool />
       <DayTimeline />
       <DayPlanPanel />
+      <AiCard />
     </div>
   )
 }

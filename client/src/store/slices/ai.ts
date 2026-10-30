@@ -19,6 +19,11 @@ export interface AiState {
   aiSeedStatus: string
   /** AI recommend dialog open (Header button). */
   aiSeedOpen: boolean
+  /**
+   * Trip changed since the last AI recommend. Edits only mark dirty;
+   * a real LLM call runs on explicit refresh (or seed).
+   */
+  aiDirty: boolean
 }
 
 export interface AiActions {
@@ -28,7 +33,10 @@ export interface AiActions {
   setAiSeedOpen: (v: boolean) => void
   requestAiRecommendations: (focus?: AiFocus) => Promise<void>
   syncTripIntelligence: () => Promise<void>
+  /** Mark recommendations stale without calling the LLM. */
   scheduleAiRefresh: () => void
+  /** Run reasonableness checks only — no LLM. */
+  refreshTripChecks: () => void
   applyAiSpotItem: (item: AiItem) => void
   applyAiLodgingItem: (item: AiItem) => void
   extendDaySpotsByAI: (dayId: string) => Promise<void>
@@ -46,6 +54,7 @@ export const initialAiState: AiState = {
   aiSeedInput: '',
   aiSeedStatus: '',
   aiSeedOpen: false,
+  aiDirty: false,
 }
 
 export function createAiActions(set: SetFn, get: GetFn): AiActions {
@@ -61,7 +70,13 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
       const budgetPerDay = parseFloat(s.aiBudget) || 0
       const trip = collectTripContext(get)
       const prompt = buildAiPrompt({ trip, focusCityId, budgetPerDay, focus })
-      set({ aiStatus: '正在向后端请求 AI 推荐…', aiPromptText: prompt, aiSections: [] })
+      set({
+        aiStatus: '正在向后端请求 AI 推荐…',
+        aiPromptText: prompt,
+        aiSections: [],
+        aiDirty: false,
+        aiRefreshTimer: null,
+      })
       try {
         const finalSections = await streamAiRecommend(prompt, {
           onSections: (sections) => {
@@ -102,16 +117,25 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
       await get().requestAiRecommendations('all')
     },
 
+    refreshTripChecks: () => {
+      get().bumpMapRedraw()
+      get().runReasonablenessChecks()
+    },
+
     scheduleAiRefresh: () => {
+      // Cost control: trip edits only mark recommendations stale.
+      // A full LLM regenerate runs when the user hits refresh / seed.
       const t = get().aiRefreshTimer
       if (t) clearTimeout(t)
       abortPendingAiRequest()
-      set({ aiStatus: '行程有改动，将自动更新推荐…' })
-      const timer = setTimeout(() => {
-        get().requestAiRecommendations('all')
-        set({ aiRefreshTimer: null })
-      }, 1500)
-      set({ aiRefreshTimer: timer })
+      const hadSections = get().aiSections.length > 0
+      set({
+        aiDirty: true,
+        aiRefreshTimer: null,
+        aiStatus: hadSections
+          ? '行程有改动，推荐待刷新（不会自动请求 AI）。当前展示的是上一次结果。'
+          : '行程有改动，推荐待刷新（不会自动请求 AI）。',
+      })
     },
 
     applyAiSpotItem: (item) => {
@@ -284,9 +308,9 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
       if (skippedNames.length) {
         useLogStore.getState().pushLog(`以下景点因高德无法定位被跳过：${skippedNames.join('、')}`, 'warn')
       }
-      try { await get().syncTripIntelligence() } catch (e) {
-        useLogStore.getState().pushLog(`AI 建议生成失败:${e instanceof Error ? e.message : e}`, 'warn')
-      }
+      // Seed already spent one LLM call for candidates — do not auto full-recommend.
+      get().scheduleAiRefresh()
+      get().refreshTripChecks()
     },
   }
 }
