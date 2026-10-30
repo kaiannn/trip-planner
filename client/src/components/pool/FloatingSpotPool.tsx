@@ -71,6 +71,7 @@ export function FloatingSpotPool() {
       defaultDock={dayPlanOpen ? 'tl' : 'tr'}
       resetDockKey={dayPlanOpen ? 'organizer' : 'map'}
       sizeId="spot-pool-v2"
+      look="soft"
       resizable
       defaultBodyHeight={400}
       minBodyHeight={200}

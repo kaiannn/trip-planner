@@ -77,6 +77,11 @@ export interface FloatingPanelProps {
   defaultW?: number
   /** Re-apply defaultW/defaultBodyHeight when this key changes (e.g. day count). */
   autoFitKey?: string | number | boolean | null
+  /**
+   * Visual skin. `soft` = rounded-2xl + gradient header + deep shadow
+   * (spot pool / AI card). `default` = compact chrome (timeline / organizer).
+   */
+  look?: 'default' | 'soft'
 }
 
 /**
@@ -105,7 +110,9 @@ export function FloatingPanel({
   resetSizeKey,
   defaultW: preferredW,
   autoFitKey,
+  look = 'default',
 }: FloatingPanelProps) {
+  const soft = look === 'soft'
   const elRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const posId = sizeId ?? 'panel'
@@ -257,7 +264,10 @@ export function FloatingPanel({
     <div
       ref={elRef}
       className={clsx(
-        'absolute z-20 flex flex-col overflow-hidden rounded-lg border border-slate-200/90 bg-white/95 shadow-md backdrop-blur-sm',
+        'pointer-events-auto absolute z-20 flex flex-col overflow-hidden border border-slate-200/90 bg-white/95 backdrop-blur-md',
+        soft
+          ? 'rounded-2xl shadow-2xl ring-1 ring-slate-900/5'
+          : 'rounded-lg shadow-md backdrop-blur-sm',
         !sized && widthClassName,
         className,
       )}
@@ -279,7 +289,12 @@ export function FloatingPanel({
     >
       <div
         onMouseDown={onGripMouseDown}
-        className="flex shrink-0 cursor-grab items-start gap-2 border-b border-slate-100 px-3 py-2 active:cursor-grabbing"
+        className={clsx(
+          'flex shrink-0 cursor-grab items-start gap-2 px-3 py-2 active:cursor-grabbing',
+          soft
+            ? 'border-b border-slate-200/80 bg-gradient-to-r from-slate-50 to-teal-50/40 py-2.5'
+            : 'border-b border-slate-100',
+        )}
       >
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold text-slate-800">{title}</div>

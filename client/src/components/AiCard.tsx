@@ -71,7 +71,7 @@ export function AiCard() {
       {isLoading ? (
         <span className="inline-flex items-center gap-1 text-teal-700">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-teal-500" />
-          生成中
+          流式生成中
         </span>
       ) : (
         aiStatus
@@ -82,15 +82,27 @@ export function AiCard() {
 
   return (
     <FloatingPanel
-      title="AI 推荐"
+      title={
+        <span className="inline-flex items-center gap-2">
+          <span
+            className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold text-white shadow-sm ${
+              isLoading ? 'animate-pulse bg-teal-500' : 'bg-teal-600'
+            }`}
+            aria-hidden
+          >
+            AI
+          </span>
+          <span>推荐</span>
+        </span>
+      }
       subtitle={subtitle}
       collapsed={collapsed}
       onToggleCollapse={() => setCollapsed((c) => !c)}
-      // Match spot pool sizing family; default top-left so it never stacks on pool (top-right).
       widthClassName="w-[19rem]"
       defaultDock={dayPlanOpen ? 'br' : 'tl'}
       resetDockKey={dayPlanOpen ? 'organizer' : 'map'}
       sizeId="ai-card-v1"
+      look="soft"
       resizable
       defaultBodyHeight={380}
       minBodyHeight={180}
@@ -103,7 +115,7 @@ export function AiCard() {
           {isLoading ? null : (
             <button
               type="button"
-              className="shrink-0 rounded border border-slate-200/90 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-teal-300 hover:text-teal-700 disabled:opacity-50"
+              className="shrink-0 rounded-md border border-slate-200/90 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-teal-300 hover:text-teal-700 disabled:opacity-50"
               onClick={(e) => {
                 e.stopPropagation()
                 void requestAiRecommendations('all')
