@@ -90,4 +90,28 @@ describe('buildAiPrompt', () => {
     expect(prompt).toContain('30.25')
     expect(prompt).toContain('120.15')
   })
+
+  it('injects structured task brief when provided', () => {
+    const prompt = buildAiPrompt({
+      trip: baseTrip,
+      focusCityId: 'c1',
+      budgetPerDay: 500,
+      brief: {
+        destination: '杭州',
+        days: 3,
+        budgetPerDay: 500,
+        pace: 'relaxed',
+        interestFocus: ['美食', '人文'],
+      },
+    })
+    expect(prompt).toContain('任务简报')
+    expect(prompt).toContain('3 天')
+    expect(prompt).toContain('松弛')
+    expect(prompt).toContain('美食、人文')
+  })
+
+  it('omits task brief block when not provided', () => {
+    const prompt = buildAiPrompt({ trip: baseTrip, focusCityId: 'c1', budgetPerDay: 0 })
+    expect(prompt).not.toContain('任务简报')
+  })
 })

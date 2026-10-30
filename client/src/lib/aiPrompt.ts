@@ -1,4 +1,5 @@
 import type { City, DailyPlan, Spot } from '../types'
+import { formatBriefForPrompt, type TaskBrief } from './taskBrief'
 
 export interface TripContextPayload {
   title: string
@@ -16,11 +17,13 @@ export function buildAiPrompt({
   focusCityId,
   budgetPerDay,
   focus = 'all',
+  brief,
 }: {
   trip: TripContextPayload
   focusCityId: string
   budgetPerDay: number
   focus?: 'all' | 'spots' | 'lodging'
+  brief?: TaskBrief
 }): string {
   const {
     title,
@@ -52,6 +55,15 @@ export function buildAiPrompt({
   )
   lines.push('5. 不要包含 JSON 以外的任何文字，不要使用 markdown。')
   lines.push('')
+
+  if (brief) {
+    lines.push(formatBriefForPrompt(brief))
+    lines.push(
+      '若简报某项为「未确定」，不要凭空承诺精确数值；可在推荐里给可选方案。',
+    )
+    lines.push('')
+  }
+
   lines.push('【用户旅行期望】（请重点结合此条推荐）')
   lines.push(travelExpectation ? `用户说：${travelExpectation}` : '（用户未填写）')
   lines.push('')

@@ -7,6 +7,13 @@ import { useSettingsStore } from '../settingsStore'
 import type { AiFocus, AiItem, AiSection } from '../../types'
 import type { SetFn, GetFn } from '../types'
 import { uid, collectTripContext } from '../utils'
+import {
+  buildTaskBrief,
+  missingSlots,
+  type MissingSlot,
+  type TaskBrief,
+  type TaskPace,
+} from '../../lib/taskBrief'
 
 export interface AiState {
   aiCityId: string
@@ -24,6 +31,12 @@ export interface AiState {
    * a real LLM call runs on explicit refresh (or seed).
    */
   aiDirty: boolean
+  /** Structured pace override; '' = unset (missing slot). */
+  taskPace: string
+  /** Selected interest tags for the task brief. */
+  taskInterests: string[]
+  /** Explicit day count when dates/daily plans are absent. */
+  taskDays: number | null
 }
 
 export interface AiActions {
@@ -37,6 +50,11 @@ export interface AiActions {
   scheduleAiRefresh: () => void
   /** Run reasonableness checks only — no LLM. */
   refreshTripChecks: () => void
+  setTaskPace: (pace: TaskPace | '') => void
+  toggleTaskInterest: (interest: string) => void
+  setTaskDays: (days: number | null) => void
+  getTaskBrief: () => TaskBrief
+  getMissingSlots: () => MissingSlot[]
   applyAiSpotItem: (item: AiItem) => void
   applyAiLodgingItem: (item: AiItem) => void
   extendDaySpotsByAI: (dayId: string) => Promise<void>
@@ -55,21 +73,50 @@ export const initialAiState: AiState = {
   aiSeedStatus: '',
   aiSeedOpen: false,
   aiDirty: false,
+  taskPace: '',
+  taskInterests: [],
+  taskDays: null,
 }
 
 export function createAiActions(set: SetFn, get: GetFn): AiActions {
+  const collectBriefSource = () => {
+    const s = get()
+    return {
+      cityNames: s.cities.slice().sort((a, b) => a.order - b.order).map((c) => c.name),
+      tripStart: s.tripStart,
+      tripEnd: s.tripEnd,
+      dailyPlanCount: s.dailyPlans.length,
+      aiBudget: s.aiBudget,
+      taskPace: s.taskPace,
+      taskInterests: s.taskInterests,
+      taskDays: s.taskDays,
+    }
+  }
+
   return {
     setAiCityId: (id) => set({ aiCityId: id }),
-    setAiBudget: (v) => set({ aiBudget: v }),
+    setAiBudget: (v) => set({ aiBudget: v, aiDirty: true }),
     setAiSeedInput: (v) => set({ aiSeedInput: v }),
     setAiSeedOpen: (v) => set({ aiSeedOpen: v }),
+    setTaskPace: (pace) => set({ taskPace: pace, aiDirty: true }),
+    toggleTaskInterest: (interest) =>
+      set((st) => ({
+        taskInterests: st.taskInterests.includes(interest)
+          ? st.taskInterests.filter((x) => x !== interest)
+          : [...st.taskInterests, interest],
+        aiDirty: true,
+      })),
+    setTaskDays: (days) => set({ taskDays: days, aiDirty: true }),
+    getTaskBrief: () => buildTaskBrief(collectBriefSource()),
+    getMissingSlots: () => missingSlots(buildTaskBrief(collectBriefSource())),
 
     requestAiRecommendations: async (focus: AiFocus = 'all') => {
       const s = get()
       const focusCityId = s.aiCityId || s.cities[0]?.id || ''
       const budgetPerDay = parseFloat(s.aiBudget) || 0
       const trip = collectTripContext(get)
-      const prompt = buildAiPrompt({ trip, focusCityId, budgetPerDay, focus })
+      const brief = buildTaskBrief(collectBriefSource())
+      const prompt = buildAiPrompt({ trip, focusCityId, budgetPerDay, focus, brief })
       set({
         aiStatus: '正在向后端请求 AI 推荐…',
         aiPromptText: prompt,
@@ -205,7 +252,13 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
       const city = s.cities.find((c) => c.id === day.cityId)
       if (!city) { useLogStore.getState().pushLog('未找到该天所在城市。', 'error'); return }
       const budgetPerDay = parseFloat(s.aiBudget) || 0
-      const base = buildAiPrompt({ trip: collectTripContext(get), focusCityId: city.id, budgetPerDay, focus: 'all' })
+      const base = buildAiPrompt({
+        trip: collectTripContext(get),
+        focusCityId: city.id,
+        budgetPerDay,
+        focus: 'all',
+        brief: buildTaskBrief(collectBriefSource()),
+      })
       const extra = `\n\n【额外要求】\n仅针对第 ${day.dayIndex} 天（${city.name}），补充 1-3 个新景点候选，优先与当日已有景点动线相近的小众景点。`
       useLogStore.getState().pushLog(`正在为第 ${day.dayIndex} 天（${city.name}）请求 AI 补充景点...`)
       try {

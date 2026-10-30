@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTripStore } from '../store'
 import type { AiItem, AiSection } from '../types'
 import { Btn } from './ui'
+import { TaskBriefBar } from './TaskBriefBar'
 
 /** Is the AI currently working? Detected from the status string the store writes. */
 function useIsAiLoading() {
@@ -91,6 +92,7 @@ export function AiCard() {
         </div>
       </div>
       <div className="max-h-[min(48vh,420px)] space-y-3 overflow-y-auto p-3 text-sm">
+        <TaskBriefBar />
         <p className="text-xs leading-relaxed text-slate-600">{aiStatus}</p>
         <details className="group rounded-xl border border-slate-200/80 bg-slate-50/90">
           <summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-teal-800 marker:hidden [&::-webkit-details-marker]:hidden">
