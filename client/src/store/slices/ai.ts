@@ -4,23 +4,40 @@ import { isDuplicateSpot } from '../../lib/geo'
 import {
   fetchAiRecommend,
   streamAiRecommend,
+  fetchAiPoiCoarseFilter,
   abortPendingAiRequest,
 } from '../../api/ai'
+import { fetchAmapPoiAround, type AmapPoi } from '../../api/amap'
 import { useLogStore } from '../logStore'
 import { useSettingsStore } from '../settingsStore'
 import type { AiFocus, AiItem, AiSection } from '../../types'
 import type { SetFn, GetFn } from '../types'
-import { uid, collectTripContext } from '../utils'
+import { uid, collectTripContext, convertAmapPois } from '../utils'
 import {
   buildTaskBrief,
   missingSlots,
+  PACE_LABELS,
   type MissingSlot,
   type TaskBrief,
   type TaskPace,
 } from '../../lib/taskBrief'
+import {
+  amapTypesForInterests,
+  type CoarseFilterPoi,
+} from '../../lib/poiCoarseFilter'
 import { effectiveVisitMinutes } from '../../lib/visitTime'
 
-export interface AiState {
+/** Nearby places for hotel-centered "附近可逛" (L1). Not persisted. */
+export interface HotelAroundState {
+  hotelAroundHotelId: string | null
+  hotelAroundStatus: string
+  hotelAroundPois: AmapPoi[]
+  /** LLM keep order; null = filter skipped / fallback rank. */
+  hotelAroundKeepIds: string[] | null
+  hotelAroundSelected: string[]
+}
+
+export interface AiState extends HotelAroundState {
   aiCityId: string
   aiBudget: string
   aiStatus: string
@@ -57,6 +74,12 @@ export interface AiActions {
   applyAiLodgingItem: (item: AiItem) => void
   extendDaySpotsByAI: (dayId: string) => Promise<void>
   runReasonablenessChecks: () => void
+  /** Hotel-centered around recall + coarse filter. */
+  fetchHotelAround: (hotelId: string) => Promise<void>
+  toggleHotelAroundSelected: (poiId: string) => void
+  setHotelAroundSelectedAll: (ids: string[]) => void
+  addSelectedHotelAround: () => number
+  clearHotelAround: () => void
 }
 
 export const initialAiState: AiState = {
@@ -70,6 +93,11 @@ export const initialAiState: AiState = {
   taskPace: '',
   taskInterests: [],
   taskDays: null,
+  hotelAroundHotelId: null,
+  hotelAroundStatus: '',
+  hotelAroundPois: [],
+  hotelAroundKeepIds: null,
+  hotelAroundSelected: [],
 }
 
 export function createAiActions(set: SetFn, get: GetFn): AiActions {
@@ -322,5 +350,191 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
         }
       })
     },
+
+    fetchHotelAround: async (hotelId) => {
+      get().markUserTrip()
+      const hotel = get().spots.find((s) => s.id === hotelId)
+      if (!hotel || hotel.kind !== 'hotel') {
+        set({ hotelAroundStatus: '未找到酒店。' })
+        return
+      }
+      if (!hotel.location || typeof hotel.location.lat !== 'number') {
+        set({ hotelAroundStatus: '该酒店没有坐标，请先在地图上定位。' })
+        return
+      }
+
+      const brief = buildTaskBrief(collectBriefSource())
+      const types =
+        brief.interestFocus.length > 0
+          ? amapTypesForInterests(brief.interestFocus)
+          : // default nearby mix: sights + food + shopping (not hotels)
+            '110000|050000|060000'
+
+      set({
+        hotelAroundHotelId: hotelId,
+        hotelAroundStatus: `正在检索「${hotel.name}」附近 2km…`,
+        hotelAroundPois: [],
+        hotelAroundKeepIds: null,
+        hotelAroundSelected: [],
+      })
+
+      let around: AmapPoi[] = []
+      try {
+        around = await fetchAmapPoiAround({
+          location: `${hotel.location.lng},${hotel.location.lat}`,
+          radius: 2000,
+          types,
+          pageSize: 25,
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        set({ hotelAroundStatus: `附近检索失败：${msg}` })
+        return
+      }
+
+      // Drop nested hotels; keep walkable food/sights/shopping.
+      const uniq: AmapPoi[] = []
+      const seen = new Set<string>()
+      for (const p of around) {
+        const key = p.id || p.name?.trim() || ''
+        if (!key || seen.has(key)) continue
+        if (p.type?.includes('100000')) continue
+        seen.add(key)
+        uniq.push(p)
+      }
+      if (!uniq.length) {
+        set({ hotelAroundStatus: '附近 2km 未找到可逛地点。' })
+        return
+      }
+
+      const filterPois: CoarseFilterPoi[] = uniq
+        .map((p) => {
+          const rating = Number(p.biz_ext?.rating || p.rating || 0)
+          return {
+            id: p.id || p.name || '',
+            name: (p.name || '').trim(),
+            type: p.type,
+            rating: rating || undefined,
+            cost: p.cost,
+          }
+        })
+        .filter((p) => p.id && p.name)
+
+      set({ hotelAroundStatus: `召回 ${filterPois.length} 个，正在按简报粗筛…` })
+      let keepIds: string[]
+      try {
+        keepIds = await fetchAiPoiCoarseFilter(
+          filterPois,
+          {
+            description: `酒店「${hotel.name}」附近可散步/用餐/轻游览的地点`,
+            interests: brief.interestFocus,
+            pace: brief.pace ? PACE_LABELS[brief.pace] : undefined,
+            budgetPerDay: brief.budgetPerDay,
+          },
+          { maxKeep: 12 },
+        )
+        set({ hotelAroundKeepIds: keepIds })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        useLogStore.getState().pushLog(
+          `周边粗筛失败（${msg}），按召回顺序展示前 12 个。`,
+          'warn',
+        )
+        if (msg.includes('LLM API Key')) useSettingsStore.getState().setSettingsOpen(true)
+        keepIds = filterPois.slice(0, 12).map((p) => p.id)
+        set({ hotelAroundKeepIds: null })
+      }
+
+      if (!keepIds.length) {
+        set({ hotelAroundStatus: '粗筛未保留任何地点。' })
+        return
+      }
+
+      const ordered = keepIds
+        .map((id) => uniq.find((p) => (p.id || p.name) === id))
+        .filter((p): p is AmapPoi => Boolean(p))
+
+      set({
+        hotelAroundPois: ordered,
+        hotelAroundSelected: ordered.slice(0, 5).map((p) => p.id || p.name || ''),
+        hotelAroundStatus: `附近可逛：保留 ${ordered.length} / 召回 ${uniq.length}（已勾选前 5）`,
+      })
+    },
+
+    toggleHotelAroundSelected: (poiId) =>
+      set((st) => ({
+        hotelAroundSelected: st.hotelAroundSelected.includes(poiId)
+          ? st.hotelAroundSelected.filter((x) => x !== poiId)
+          : [...st.hotelAroundSelected, poiId],
+      })),
+
+    setHotelAroundSelectedAll: (ids) => set({ hotelAroundSelected: ids }),
+
+    addSelectedHotelAround: () => {
+      const s = get()
+      const hotelId = s.hotelAroundHotelId
+      const hotel = hotelId ? s.spots.find((sp) => sp.id === hotelId) : null
+      if (!hotel) {
+        useLogStore.getState().pushLog('请先对某家酒店执行「附近可逛」。', 'warn')
+        return 0
+      }
+      const selected = new Set(s.hotelAroundSelected)
+      if (!selected.size) {
+        useLogStore.getState().pushLog('请先勾选要加入景点池的地点。', 'warn')
+        return 0
+      }
+      const orderedIds = s.hotelAroundPois
+        .map((p) => p.id || p.name || '')
+        .filter((id) => selected.has(id))
+      const picked = orderedIds
+        .map((id) => s.hotelAroundPois.find((p) => (p.id || p.name) === id))
+        .filter((p): p is AmapPoi => Boolean(p))
+        .slice(0, 20)
+
+      const result = convertAmapPois(picked, hotel.cityId, s.spots, 'spot_hotel_around')
+      // kind: food vs sight from AMap type
+      const kindById = new Map<string, Spot['kind']>()
+      for (const p of picked) {
+        const id = p.id || p.name || ''
+        kindById.set(id, kindFromAmapType(p.type))
+      }
+      const spots = result.spots.map((sp) => {
+        const kind = sp.amapId ? kindById.get(sp.amapId) : undefined
+        if (!kind || kind === sp.kind) return sp
+        return { ...sp, kind } as Spot
+      })
+      const added = spots.length - s.spots.length
+      set({ spots })
+      if (added) {
+        useLogStore.getState().pushLog(
+          `已从「${hotel.name}」附近加入 ${added} 个地点到景点池。`,
+        )
+        get().scheduleAiRefresh()
+      } else {
+        useLogStore.getState().pushLog('所选地点都已在景点池中。')
+      }
+      return added
+    },
+
+    clearHotelAround: () =>
+      set({
+        hotelAroundHotelId: null,
+        hotelAroundStatus: '',
+        hotelAroundPois: [],
+        hotelAroundKeepIds: null,
+        hotelAroundSelected: [],
+      }),
   }
+}
+
+/** AMap type (codes or Chinese labels) → Spot.kind for nearby adds. */
+function kindFromAmapType(type?: string): Spot['kind'] {
+  if (!type) return 'sight'
+  if (type.includes('100000') || type.includes('酒店') || type.includes('住宿')) {
+    return 'hotel'
+  }
+  if (type.includes('050000') || type.includes('餐饮') || type.includes('美食')) {
+    return 'restaurant'
+  }
+  return 'sight'
 }

@@ -13,6 +13,7 @@ import {
 import type { Spot, SpotKind } from '../../types'
 import { parseVisitMinutes } from '../../lib/visitTime'
 import { Modal } from '../layout/Modal'
+import { HotelAroundPanel } from '../HotelAroundPanel'
 
 /**
  * Spot detail + full editor.
@@ -449,6 +450,12 @@ export function SpotDetailModal() {
               </div>
             </div>
           </div>
+
+          {kind === 'hotel' && (
+            <div className="sm:col-span-2">
+              <HotelAroundPanel hotelId={spot.id} hotelName={spot.name} />
+            </div>
+          )}
         </div>
 
         {(draft.imageBlobId || draft.imageUrl || videoPreview) && (
