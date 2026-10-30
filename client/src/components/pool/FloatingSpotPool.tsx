@@ -29,6 +29,7 @@ export function FloatingSpotPool() {
   const mapFocusDayId = useTripStore((s) => s.mapFocusDayId)
   const openDayPlanFor = useTripStore((s) => s.openDayPlanFor)
   const ensureDaysForDateRange = useTripStore((s) => s.ensureDaysForDateRange)
+  const packUnassignedSpots = useTripStore((s) => s.packUnassignedSpots)
 
   const [collapsed, setCollapsed] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
@@ -107,6 +108,19 @@ export function FloatingSpotPool() {
             className="shrink-0 rounded border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800"
           >
             分配
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (!dailyPlans.length) ensureDaysForDateRange()
+              packUnassignedSpots()
+            }}
+            disabled={unassigned.length === 0}
+            title="按停留时长与城市贪心装入各天（纯代码，不调用 LLM）；装完仍可拖拽微调"
+            className="shrink-0 rounded border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800 disabled:opacity-40"
+          >
+            装箱
           </button>
         </>
       }

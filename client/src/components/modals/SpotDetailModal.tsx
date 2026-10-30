@@ -11,6 +11,7 @@ import {
   spotKind,
 } from '../../lib/spotKind'
 import type { Spot, SpotKind } from '../../types'
+import { parseVisitMinutes } from '../../lib/visitTime'
 import { Modal } from '../layout/Modal'
 
 /**
@@ -37,6 +38,7 @@ export function SpotDetailModal() {
   // so we don't have to re-narrow on every change.
   type DraftSpot = Spot & {
     visitTimeText?: string
+    visitMinutes?: number
     innerTransport?: string
     imageUrl?: string
     imageBlobId?: string
@@ -111,13 +113,20 @@ export function SpotDetailModal() {
       innerTransport: draft.innerTransport?.trim() || undefined,
       imageUrl: draft.imageUrl?.trim() || undefined,
       imageBlobId: draft.imageBlobId,
+      visitMinutes:
+        typeof draft.visitMinutes === 'number' && draft.visitMinutes > 0
+          ? draft.visitMinutes
+          : undefined,
     }
     let cleaned: Partial<Spot>
     if (kind === 'sight') {
+      const visitTimeText = draft.visitTimeText?.trim() || undefined
       cleaned = {
         ...cleanedCommon,
         kind: 'sight',
-        visitTimeText: draft.visitTimeText?.trim() || undefined,
+        visitTimeText,
+        visitMinutes:
+          cleanedCommon.visitMinutes ?? parseVisitMinutes(visitTimeText) ?? undefined,
         guideUrl: draft.guideUrl?.trim() || undefined,
         videoUrl: draft.videoUrl?.trim() || undefined,
         xiaohongshuUrls: draft.xiaohongshuUrls?.length
@@ -278,6 +287,26 @@ export function SpotDetailModal() {
                 placeholder="例:2-3 小时"
                 value={draft.visitTimeText ?? ''}
                 onChange={(e) => setField('visitTimeText', e.target.value)}
+              />
+            </Field>
+          )}
+
+          {kind === 'sight' && (
+            <Field label="时长（分钟，可选）">
+              <input
+                type="number"
+                min={0}
+                step={15}
+                className={inputClass}
+                placeholder="装箱用；留空则解析文本"
+                value={draft.visitMinutes ?? ''}
+                onChange={(e) => {
+                  const raw = e.target.value
+                  setField(
+                    'visitMinutes',
+                    raw === '' ? undefined : Math.max(0, Number(raw) || 0),
+                  )
+                }}
               />
             </Field>
           )}

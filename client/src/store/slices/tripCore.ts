@@ -13,9 +13,17 @@ import type { SetFn, GetFn } from '../types'
 import { uid, convertAmapPois, enrichSpotPhotos } from '../utils'
 import { fetchAmapPoiList, pickPoiPhoto } from '../../api/amap'
 import { useSettingsStore } from '../settingsStore'
+import { allPlannedSpotIds } from '../../lib/resolveDayPath'
+import { packSpotsIntoDays, type PackableSpot } from '../../lib/dayPack'
+import { effectiveVisitMinutes } from '../../lib/visitTime'
+import type { TaskPace } from '../../lib/taskBrief'
 
 /** empty = no trip; demo = sample loaded; user = real edits (or non-demo data). */
 export type TripDataSource = 'empty' | 'demo' | 'user'
+
+function sameOrder(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i])
+}
 
 export interface TripCoreState {
   cities: City[]
@@ -65,6 +73,8 @@ export interface TripCoreActions {
   /** Append a spot onto the day's active path (default or selected branch). */
   assignSpotToActivePath: (spotId: string, dayId: string) => void
   ensureDaysForDateRange: () => number
+  /** Greedy-pack unassigned pool spots into day spotOrders (no LLM). */
+  packUnassignedSpots: () => { packed: number; leftover: number; daysTouched: number }
   confirmAutoSeed: () => void
   cancelAutoSeed: () => void
   loadDemoData: () => void
@@ -474,6 +484,95 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
       useLogStore.getState().pushLog(`已自动创建 ${newDays.length} 天空白行程,可以开始安排了。`)
       get().bumpMapRedraw()
       return s.dailyPlans.length + newDays.length
+    },
+
+    packUnassignedSpots: () => {
+      markUserTrip()
+      const s = get()
+      const spots = s.spots
+      const dailyPlans = s.dailyPlans.slice().sort((a, b) => a.dayIndex - b.dayIndex)
+
+      if (!dailyPlans.length) {
+        useLogStore.getState().pushLog('还没有每日行程，无法装箱。请先创建天数或日期范围。', 'warn')
+        return { packed: 0, leftover: 0, daysTouched: 0 }
+      }
+
+      const assigned = new Set<string>()
+      dailyPlans.forEach((d) => allPlannedSpotIds(d).forEach((id) => assigned.add(id)))
+      const unassigned = spots.filter((sp) => !assigned.has(sp.id))
+      if (!unassigned.length) {
+        useLogStore.getState().pushLog('景点池里没有未分配的景点可装箱。')
+        return { packed: 0, leftover: 0, daysTouched: 0 }
+      }
+
+      const toPackable = (sp: Spot): PackableSpot => ({
+        id: sp.id,
+        cityId: sp.cityId,
+        name: sp.name,
+        location: sp.location,
+        kind: sp.kind,
+        visitMinutes: sp.visitMinutes,
+        visitTimeText: sp.kind === 'sight' ? sp.visitTimeText : undefined,
+      })
+      const byId = new Map(spots.map((sp) => [sp.id, sp]))
+
+      const dayInputs = dailyPlans.map((d) => ({
+        dayId: d.id,
+        dayIndex: d.dayIndex,
+        cityId: d.cityId,
+        existing: d.spotOrder
+          .map((id) => byId.get(id))
+          .filter((sp): sp is Spot => Boolean(sp))
+          .map(toPackable),
+      }))
+
+      const pace = (s.taskPace || '') as TaskPace | ''
+      const result = packSpotsIntoDays(dayInputs, unassigned.map(toPackable), {
+        pace,
+      })
+
+      let daysTouched = 0
+      const nextPlans = dailyPlans.map((d) => {
+        const next = result.dayOrders[d.id]
+        if (!next || sameOrder(next, d.spotOrder)) return d
+        daysTouched++
+        // Only rewrite default path — keep dayBranches intact for weather alternatives.
+        return { ...d, spotOrder: next }
+      })
+
+      if (!daysTouched) {
+        useLogStore.getState().pushLog(
+          `装箱完成：${result.leftoverIds.length} 个因容量/城市不匹配未能入日（已有顺序未变）。`,
+          result.leftoverIds.length ? 'warn' : 'info',
+        )
+        return { packed: 0, leftover: result.leftoverIds.length, daysTouched: 0 }
+      }
+
+      set({ dailyPlans: nextPlans })
+      const packed =
+        result.dayOrders &&
+        Object.values(result.dayOrders).reduce((n, o) => n + o.length, 0) -
+          dayInputs.reduce((n, d) => n + d.existing.length, 0)
+
+      // Backfill numeric visitMinutes on newly packed spots from text
+      const patched = spots.map((sp) => {
+        if (sp.visitMinutes != null) return sp
+        const m = effectiveVisitMinutes(sp)
+        return { ...sp, visitMinutes: m }
+      })
+      set({ spots: patched })
+
+      useLogStore.getState().pushLog(
+        `已贪心装箱：${Math.max(0, packed)} 个景点入日，覆盖 ${daysTouched} 天；` +
+          `${result.leftoverIds.length} 个未入日（可拖拽或改天数后再试）。`,
+      )
+      get().bumpMapRedraw()
+      get().scheduleAiRefresh()
+      return {
+        packed: Math.max(0, packed),
+        leftover: result.leftoverIds.length,
+        daysTouched,
+      }
     },
 
     confirmAutoSeed: () => {

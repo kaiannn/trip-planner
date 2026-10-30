@@ -8,6 +8,7 @@ import { initialAmapPoiState, createAmapPoiActions } from './slices/amapPoi'
 import { initialQuizState, createQuizActions } from './slices/quiz'
 import { useLogStore } from './logStore'
 import type { LogEntry } from '../types'
+import { parseVisitMinutes } from '../lib/visitTime'
 
 export type { FullStore }
 
@@ -40,21 +41,37 @@ export const useTripStore = create<StoreWithLogs>()(
     }),
     {
       name: 'trip-planner-storage',
-      version: 3,
+      version: 4,
       migrate: (persistedState) => {
         const s = persistedState as
           | {
-              spots?: Array<{ kind?: string; id?: string }>
+              spots?: Array<{
+                kind?: string
+                id?: string
+                visitTimeText?: string
+                visitMinutes?: number
+              }>
               cities?: unknown[]
               dataSource?: 'empty' | 'demo' | 'user'
             }
           | undefined
         if (s?.spots?.length) {
-          s.spots = s.spots.map((sp) =>
-            sp && typeof sp === 'object' && !('kind' in sp)
-              ? { ...sp, kind: 'sight' }
-              : sp,
-          )
+          s.spots = s.spots.map((sp) => {
+            let next = sp
+            if (sp && typeof sp === 'object' && !('kind' in sp)) {
+              next = { ...sp, kind: 'sight' }
+            }
+            // v4: backfill numeric stay minutes from free-text when missing
+            if (
+              next &&
+              next.visitMinutes == null &&
+              typeof next.visitTimeText === 'string'
+            ) {
+              const m = parseVisitMinutes(next.visitTimeText)
+              if (m != null) next = { ...next, visitMinutes: m }
+            }
+            return next
+          })
         }
         if (!s || typeof s !== 'object') {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

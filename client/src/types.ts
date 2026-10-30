@@ -30,6 +30,11 @@ interface BaseSpot {
   /** AMap POI id — used to backfill photos via place/detail. */
   amapId?: string
   description?: string
+  /**
+   * Numeric stay duration in minutes. Preferred over visitTimeText for
+   * packing. Optional — legacy spots may only have visitTimeText.
+   */
+  visitMinutes?: number
 }
 
 export interface SightSpot extends BaseSpot {
