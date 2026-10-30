@@ -74,6 +74,7 @@ export function DayPlanPanel() {
         onToggleCollapse={() => setDayPlanOpen(false)}
         defaultDock="tr"
         widthClassName="w-[20rem]"
+        look="soft"
         resetDockKey="empty"
         actions={
           <Btn
@@ -120,6 +121,7 @@ export function DayPlanPanel() {
       onToggleCollapse={() => setCollapsed((c) => !c)}
       defaultDock="tr"
       sizeId="day-organizer-v2"
+      look="soft"
       defaultBodyHeight={520}
       minBodyHeight={260}
       minW={320}

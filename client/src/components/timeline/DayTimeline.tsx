@@ -186,6 +186,7 @@ export function DayTimeline() {
         defaultDock="bl"
         resetDockKey="days"
         sizeId="day-timeline-v3"
+        look="soft"
         resizable
         // User-measured panel width (DOMRect w=542); auto-fit still used as floor when day count grows
         defaultW={Math.max(fit.defaultW, 542)}
