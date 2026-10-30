@@ -6,11 +6,14 @@ vi.mock('../api/ai', () => ({
   fetchAiRecommend: vi.fn(async () => []),
   streamAiRecommend: vi.fn(async () => []),
   fetchAiSeedPool: vi.fn(async () => []),
+  fetchAiPoiCoarseFilter: vi.fn(async () => []),
 }))
 
 vi.mock('../api/amap', () => ({
   fetchAmapPoiList: vi.fn(async () => []),
   fetchAmapPoiDetail: vi.fn(async () => null),
+  fetchAmapPoiAround: vi.fn(async () => []),
+  parseAmapLocation: vi.fn(() => null),
   pickPoiPhoto: vi.fn(() => undefined),
 }))
 

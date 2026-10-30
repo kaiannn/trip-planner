@@ -165,3 +165,73 @@ export async function fetchAmapPoiDetail(poiId: string): Promise<AmapPoi | null>
     return null
   }
 }
+
+/** Parse AMap `lng,lat` string → numeric location, or null. */
+export function parseAmapLocation(location: string | undefined): { lat: number; lng: number } | null {
+  if (!location) return null
+  const loc = String(location).split(',')
+  const lng = Number.parseFloat(loc[0])
+  const lat = Number.parseFloat(loc[1])
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  return { lat, lng }
+}
+
+/**
+ * Around search (place/around). Real coordinates required — better than
+ * free-text inventing names. Prefer v5; fall back to v3.
+ */
+export async function fetchAmapPoiAround(params: {
+  /** AMap format: `lng,lat` */
+  location: string
+  /** meters, 100–50000; default 5000 */
+  radius?: number
+  keywords?: string
+  /** AMap type codes, e.g. `110000` sights / `050000` food / `100000` hotels */
+  types?: string
+  pageSize?: number
+}): Promise<AmapPoi[]> {
+  const key = requireAmapWebServiceKey()
+  const radius = Math.min(50_000, Math.max(100, params.radius ?? 5_000))
+  const pageSize = Math.min(25, Math.max(1, params.pageSize ?? 25))
+
+  let pois: AmapPoi[] = []
+
+  try {
+    const url = new URL('https://restapi.amap.com/v5/place/around')
+    url.searchParams.set('key', key)
+    url.searchParams.set('location', params.location)
+    url.searchParams.set('radius', String(radius))
+    url.searchParams.set('page_size', String(pageSize))
+    url.searchParams.set('page_num', '1')
+    url.searchParams.set('sortrule', 'weight')
+    url.searchParams.set('show_fields', 'photos,business')
+    if (params.keywords) url.searchParams.set('keywords', params.keywords)
+    if (params.types) url.searchParams.set('types', params.types)
+    const res = await fetch(url.toString())
+    const data = await res.json()
+    if (Array.isArray(data.pois)) {
+      pois = data.pois.map((p: Record<string, unknown>) => parseV5Poi(p))
+    }
+  } catch {
+    pois = []
+  }
+
+  if (!pois.length) {
+    const url = new URL('https://restapi.amap.com/v3/place/around')
+    url.searchParams.set('key', key)
+    url.searchParams.set('location', params.location)
+    url.searchParams.set('radius', String(radius))
+    url.searchParams.set('offset', String(pageSize))
+    url.searchParams.set('page', '1')
+    url.searchParams.set('extensions', 'all')
+    if (params.keywords) url.searchParams.set('keywords', params.keywords)
+    if (params.types) url.searchParams.set('types', params.types)
+    const res = await fetch(url.toString())
+    const data = await res.json()
+    if (data.status === '1' && Array.isArray(data.pois)) {
+      pois = data.pois
+    }
+  }
+
+  return pois.filter((p) => p.name?.trim() && p.location)
+}

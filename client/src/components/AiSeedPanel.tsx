@@ -16,6 +16,7 @@ export function AiSeedModal() {
   const setTripField = useTripStore((s) => s.setTripField)
   const setAiSeedInput = useTripStore((s) => s.setAiSeedInput)
   const seedPoolFromAi = useTripStore((s) => s.seedPoolFromAi)
+  const seedPoolAroundWithFilter = useTripStore((s) => s.seedPoolAroundWithFilter)
   const cities = useTripStore((s) => s.cities)
   const spots = useTripStore((s) => s.spots)
   const dailyPlans = useTripStore((s) => s.dailyPlans)
@@ -39,6 +40,10 @@ export function AiSeedModal() {
   const handleRun = useCallback(() => {
     if (!loading) void seedPoolFromAi()
   }, [loading, seedPoolFromAi])
+
+  const handleAround = useCallback(() => {
+    if (!loading) void seedPoolAroundWithFilter()
+  }, [loading, seedPoolAroundWithFilter])
 
   return (
     <Modal
@@ -88,6 +93,15 @@ export function AiSeedModal() {
               onClick={handleRun}
             >
               {loading ? '生成中…' : failed ? '重试' : '生成候选'}
+            </Btn>
+            <Btn
+              variant="secondary"
+              className={loading ? 'opacity-60' : ''}
+              onClick={handleAround}
+              disabled={cities.length === 0}
+              title="用高德周边检索真实 POI，再由 AI 粗筛入池（不编造景点名）"
+            >
+              周边精筛
             </Btn>
             <select
               className="rounded-md border border-slate-200 px-2.5 py-1.5 text-[12px] text-slate-700 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100"

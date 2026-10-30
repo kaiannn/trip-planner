@@ -1,6 +1,13 @@
 import type { TripContextPayload } from '../lib/aiPrompt'
 import { useSettingsStore } from '../store/settingsStore'
 import type { AiPoolCandidate, AiSection } from '../types'
+import {
+  buildCoarseFilterUserPrompt,
+  COARSE_FILTER_SYSTEM_PROMPT,
+  parseKeepIds,
+  type CoarseFilterBriefLine,
+  type CoarseFilterPoi,
+} from '../lib/poiCoarseFilter'
 
 let aiAbortController: AbortController | null = null
 
@@ -240,4 +247,27 @@ export async function fetchAiPoiQuery(
     types: ((parsed.types as string) || '').trim(),
     quality: parsed.quality === 'high' ? 'high' : 'normal',
   }
+}
+
+/**
+ * Coarse-filter real AMap POIs with a short closed-set prompt.
+ * Returns allowed ids in the model's priority order (only).
+ */
+export async function fetchAiPoiCoarseFilter(
+  pois: CoarseFilterPoi[],
+  brief: CoarseFilterBriefLine,
+  opts: { maxKeep?: number; retryOpts?: RetryOptions } = {},
+): Promise<string[]> {
+  if (!pois.length) return []
+  const maxKeep = Math.min(opts.maxKeep ?? 12, pois.length)
+  const user = buildCoarseFilterUserPrompt(pois, brief, maxKeep)
+  return withRetry(async () => {
+    const resp = await callLlm([
+      { role: 'system', content: COARSE_FILTER_SYSTEM_PROMPT },
+      { role: 'user', content: user },
+    ], { temperature: 0.2 })
+    const parsed = (await resp.json()) as Record<string, unknown>
+    const keep = parseKeepIds(parsed, pois.map((p) => p.id))
+    return keep.slice(0, maxKeep)
+  }, opts.retryOpts)
 }

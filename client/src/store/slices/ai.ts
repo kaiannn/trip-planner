@@ -1,19 +1,30 @@
 import type { Spot } from '../../types'
+import type { City } from '../../types'
 import { buildAiPrompt } from '../../lib/aiPrompt'
 import { isDuplicateSpot } from '../../lib/geo'
-import { fetchAiRecommend, streamAiRecommend, fetchAiSeedPool, abortPendingAiRequest } from '../../api/ai'
+import {
+  fetchAiRecommend,
+  streamAiRecommend,
+  fetchAiSeedPool,
+  fetchAiPoiCoarseFilter,
+  abortPendingAiRequest,
+} from '../../api/ai'
+import { fetchAmapPoiAround, type AmapPoi } from '../../api/amap'
 import { useLogStore } from '../logStore'
 import { useSettingsStore } from '../settingsStore'
 import type { AiFocus, AiItem, AiSection } from '../../types'
 import type { SetFn, GetFn } from '../types'
-import { uid, collectTripContext } from '../utils'
+import { uid, collectTripContext, convertAmapPois } from '../utils'
 import {
   buildTaskBrief,
   missingSlots,
+  formatBriefLine,
+  PACE_LABELS,
   type MissingSlot,
   type TaskBrief,
   type TaskPace,
 } from '../../lib/taskBrief'
+import { amapTypesForInterests, type CoarseFilterPoi } from '../../lib/poiCoarseFilter'
 
 export interface AiState {
   aiCityId: string
@@ -60,6 +71,8 @@ export interface AiActions {
   extendDaySpotsByAI: (dayId: string) => Promise<void>
   runReasonablenessChecks: () => void
   seedPoolFromAi: () => Promise<void>
+  /** Around-search recall + LLM coarse filter → pool (preferred seed path). */
+  seedPoolAroundWithFilter: () => Promise<void>
 }
 
 export const initialAiState: AiState = {
@@ -365,5 +378,162 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
       get().scheduleAiRefresh()
       get().refreshTripChecks()
     },
+
+    seedPoolAroundWithFilter: async () => {
+      get().markUserTrip()
+      const s = get()
+      const cityList = s.cities.slice().sort((a, b) => a.order - b.order)
+      const focusCity =
+        cityList.find((c) => c.id === (s.aiCityId || '')) || cityList[0]
+      if (!focusCity) {
+        useLogStore.getState().pushLog('请至少添加一个城市再使用周边精筛。', 'error')
+        return
+      }
+
+      const brief = buildTaskBrief(collectBriefSource())
+      const briefLine = formatBriefLine(brief)
+      const desc = s.aiSeedInput.trim()
+      set({ aiSeedStatus: '正在解析城市坐标…' })
+
+      const center = await resolveCityCenter(focusCity)
+      if (!center) {
+        set({ aiSeedStatus: '无法定位城市中心点。' })
+        useLogStore.getState().pushLog(
+          `无法为「${focusCity.name}」定位中心点（可在地图上点选城市）。`,
+          'error',
+        )
+        return
+      }
+
+      const types = amapTypesForInterests(brief.interestFocus)
+      set({ aiSeedStatus: `正在召回「${focusCity.name}」周边 POI…` })
+      let around: AmapPoi[] = []
+      try {
+        around = await fetchAmapPoiAround({
+          location: `${center.lng},${center.lat}`,
+          radius: 8000,
+          types,
+          pageSize: 25,
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        set({ aiSeedStatus: `周边召回失败：${msg}` })
+        useLogStore.getState().pushLog(`高德周边检索失败：${msg}`, 'error')
+        return
+      }
+      if (!around.length) {
+        set({ aiSeedStatus: '周边未返回 POI，可换个城市中心或放宽兴趣标签。' })
+        return
+      }
+
+      // Dedupe by id / name
+      const seen = new Set<string>()
+      const uniq: AmapPoi[] = []
+      for (const p of around) {
+        const key = p.id || p.name?.trim() || ''
+        if (!key || seen.has(key)) continue
+        seen.add(key)
+        uniq.push(p)
+      }
+
+      const filterPois: CoarseFilterPoi[] = uniq
+        .map((p) => {
+          const rating = Number(p.biz_ext?.rating || p.rating || 0)
+          return {
+            id: p.id || p.name || '',
+            name: (p.name || '').trim(),
+            type: p.type,
+            rating: rating || undefined,
+            cost: p.cost,
+          }
+        })
+        .filter((p) => p.id && p.name)
+
+      set({ aiSeedStatus: `召回 ${filterPois.length} 个 POI，正在粗筛…` })
+      let keepIds: string[]
+      try {
+        keepIds = await fetchAiPoiCoarseFilter(
+          filterPois,
+          {
+            description: desc || briefLine,
+            interests: brief.interestFocus,
+            pace: brief.pace ? PACE_LABELS[brief.pace] : undefined,
+            budgetPerDay: brief.budgetPerDay,
+          },
+          { maxKeep: 12 },
+        )
+      } catch (e) {
+        // Fallback: no LLM — keep first N real POIs (still better than inventing names)
+        const msg = e instanceof Error ? e.message : String(e)
+        useLogStore.getState().pushLog(
+          `粗筛失败（${msg}），回退为按召回顺序保留前 12 个真实 POI。`,
+          'warn',
+        )
+        keepIds = filterPois.slice(0, 12).map((p) => p.id)
+        if (msg.includes('LLM API Key')) useSettingsStore.getState().setSettingsOpen(true)
+      }
+      if (!keepIds.length) {
+        set({ aiSeedStatus: '粗筛未保留任何 POI。' })
+        return
+      }
+
+      const keepSet = new Set(keepIds)
+      const keptPois = keepIds
+        .map((id) => uniq.find((p) => (p.id || p.name) === id))
+        .filter((p): p is AmapPoi => Boolean(p))
+
+      const result = convertAmapPois(keptPois, focusCity.id, s.spots, 'spot_amap_around')
+      // Patch kind from AMap type codes (convertAmapPois defaults to sight)
+      const kindByAmapId = new Map<string, Spot['kind']>()
+      for (const p of keptPois) {
+        if (!p.id) continue
+        kindByAmapId.set(p.id, kindFromAmapType(p.type))
+      }
+      const spots = result.spots.map((sp) => {
+        const kind = sp.amapId ? kindByAmapId.get(sp.amapId) : undefined
+        if (!kind || kind === (sp as Spot).kind) return sp
+        return { ...sp, kind } as Spot
+      })
+      const added = spots.length - s.spots.length
+
+      set({
+        spots,
+        aiSeedStatus: `已精筛并加入 ${added} 个周边 POI（召回 ${filterPois.length} → 保留 ${keptPois.length}）。`,
+        aiCityId: focusCity.id,
+      })
+      useLogStore.getState().pushLog(
+        `周边精筛入池：${focusCity.name} 召回 ${filterPois.length} → 入池 ${added}${keepSet.size ? `（粗筛 ${keepSet.size}）` : ''}。`,
+      )
+      get().scheduleAiRefresh()
+      get().refreshTripChecks()
+    },
   }
+}
+
+/** AMap types → Spot.kind (best-effort). */
+function kindFromAmapType(type?: string): Spot['kind'] {
+  if (!type) return 'sight'
+  // 100000 酒店; 050000 餐饮服务
+  if (type.includes('100000')) return 'hotel'
+  if (type.includes('050000')) return 'restaurant'
+  return 'sight'
+}
+
+async function resolveCityCenter(city: City): Promise<{ lat: number; lng: number } | null> {
+  if (city.location && typeof city.location.lat === 'number') {
+    return city.location
+  }
+  const AMapNs = typeof window !== 'undefined' ? window.AMap : undefined
+  if (!AMapNs?.Geocoder) return null
+  return new Promise((resolve) => {
+    const g = new AMapNs.Geocoder({ city: city.name })
+    g.getLocation(city.name, (status, result) => {
+      if (status === 'complete' && result.info === 'OK' && result.geocodes?.length) {
+        const loc = result.geocodes[0].location
+        resolve({ lat: loc.lat, lng: loc.lng })
+      } else {
+        resolve(null)
+      }
+    })
+  })
 }
