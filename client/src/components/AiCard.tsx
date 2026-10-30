@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTripStore } from '../store'
 import type { AiItem, AiSection } from '../types'
 import { Btn } from './ui'
+import { FloatingPanel } from './layout/FloatingPanel'
 import { TaskBriefBar } from './TaskBriefBar'
 
 /** Is the AI currently working? Detected from the status string the store writes. */
@@ -17,7 +18,7 @@ function useIsAiLoading() {
 
 function SkeletonRows({ count = 3 }: { count?: number }) {
   return (
-    <div className="space-y-2 border-t border-slate-100 pt-2">
+    <div className="space-y-2">
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
@@ -38,62 +39,90 @@ function SkeletonRows({ count = 3 }: { count?: number }) {
   )
 }
 
+/**
+ * AI recommendations — same FloatingPanel chrome as the spot pool.
+ * Default dock: top-left (pool owns top-right; organizer takes top-right
+ * when open, pool then moves left — AI shifts to bottom-right to stay clear).
+ */
 export function AiCard() {
   const aiStatus = useTripStore((s) => s.aiStatus)
   const aiPromptText = useTripStore((s) => s.aiPromptText)
   const aiSections = useTripStore((s) => s.aiSections)
   const aiDirty = useTripStore((s) => s.aiDirty)
+  const dayPlanOpen = useTripStore((s) => s.dayPlanOpen)
   const requestAiRecommendations = useTripStore((s) => s.requestAiRecommendations)
   const applyAiSpotItem = useTripStore((s) => s.applyAiSpotItem)
   const applyAiLodgingItem = useTripStore((s) => s.applyAiLodgingItem)
   const hasCities = useTripStore((s) => s.cities.length > 0)
   const [open, setOpen] = useState<Record<number, boolean>>({})
+  const [collapsed, setCollapsed] = useState(false)
   const isLoading = useIsAiLoading()
   const showSkeleton = isLoading && aiSections.length === 0
   const canRefresh = !isLoading && hasCities
 
+  const dirtyBadge = aiDirty && !isLoading && (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200/80">
+      待刷新
+    </span>
+  )
+
+  const subtitle = (
+    <span className="inline-flex items-center gap-1.5">
+      {isLoading ? (
+        <span className="inline-flex items-center gap-1 text-teal-700">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-teal-500" />
+          生成中
+        </span>
+      ) : (
+        aiStatus
+      )}
+      {dirtyBadge}
+    </span>
+  )
+
   return (
-    <div
-      id="ai-card"
-      className="pointer-events-auto absolute right-3 top-3 z-10 flex w-[min(340px,calc(100%-24px))] max-h-[min(52vh,480px)] flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-2xl ring-1 ring-slate-900/5 backdrop-blur-md"
-    >
-      <div className="border-b border-slate-200/80 bg-gradient-to-r from-slate-50 to-teal-50/40 px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <span
-            className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold text-white shadow-sm ${
-              isLoading ? 'animate-pulse bg-teal-500' : 'bg-teal-600'
-            }`}
-          >
-            AI
-          </span>
-          <span className="text-sm font-semibold text-slate-800">推荐</span>
-          {aiDirty && !isLoading && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200/80">
-              待刷新
-            </span>
-          )}
-          <div className="ml-auto flex items-center gap-1.5">
-            {isLoading && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-medium text-teal-700">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-teal-500" />
-                流式生成中
-              </span>
-            )}
+    <FloatingPanel
+      title="AI 推荐"
+      subtitle={subtitle}
+      collapsed={collapsed}
+      onToggleCollapse={() => setCollapsed((c) => !c)}
+      // Match spot pool sizing family; default top-left so it never stacks on pool (top-right).
+      widthClassName="w-[19rem]"
+      defaultDock={dayPlanOpen ? 'br' : 'tl'}
+      resetDockKey={dayPlanOpen ? 'organizer' : 'map'}
+      sizeId="ai-card-v1"
+      resizable
+      defaultBodyHeight={380}
+      minBodyHeight={180}
+      minW={240}
+      maxWRatio={0.42}
+      maxHRatio={0.72}
+      bodyClassName="bg-white/40"
+      actions={
+        <>
+          {isLoading ? null : (
             <button
               type="button"
-              className="rounded-md border border-slate-200/90 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-teal-300 hover:text-teal-700 disabled:opacity-50"
-              onClick={() => void requestAiRecommendations('all')}
+              className="shrink-0 rounded border border-slate-200/90 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-teal-300 hover:text-teal-700 disabled:opacity-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                void requestAiRecommendations('all')
+              }}
               disabled={!canRefresh}
-              title={aiDirty ? '行程已变更，手动刷新推荐（会调用 LLM）' : '重新生成推荐（会调用 LLM）'}
+              title={
+                aiDirty
+                  ? '行程已变更，手动刷新推荐（会调用 LLM）'
+                  : '重新生成推荐（会调用 LLM）'
+              }
             >
               刷新
             </button>
-          </div>
-        </div>
-      </div>
-      <div className="max-h-[min(48vh,420px)] space-y-3 overflow-y-auto p-3 text-sm">
+          )}
+        </>
+      }
+    >
+      <div className="space-y-3 text-sm">
         <TaskBriefBar />
-        <p className="text-xs leading-relaxed text-slate-600">{aiStatus}</p>
         <details className="group rounded-xl border border-slate-200/80 bg-slate-50/90">
           <summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-teal-800 marker:hidden [&::-webkit-details-marker]:hidden">
             <span className="underline decoration-teal-300/80 decoration-dotted underline-offset-2">
@@ -107,7 +136,7 @@ export function AiCard() {
         {showSkeleton ? (
           <SkeletonRows />
         ) : (
-          <div className="space-y-2 border-t border-slate-100 pt-2">
+          <div className="space-y-2">
             {aiSections.map((sec: AiSection, i: number) => (
               <div
                 key={sec.id || i}
@@ -126,7 +155,10 @@ export function AiCard() {
                 {open[i] && (
                   <div className="space-y-2 border-t border-slate-100 bg-slate-50/30 px-3 py-2">
                     {(sec.items || []).map((item: AiItem, j: number) => (
-                      <div key={j} className="rounded-lg border border-slate-100 bg-white p-2.5 text-slate-700 shadow-sm">
+                      <div
+                        key={j}
+                        className="rounded-lg border border-slate-100 bg-white p-2.5 text-slate-700 shadow-sm"
+                      >
                         <div className="font-medium">{item.title}</div>
                         {item.summary && (
                           <div className="text-[11px] text-slate-500">- {item.summary}</div>
@@ -165,6 +197,6 @@ export function AiCard() {
           </div>
         )}
       </div>
-    </div>
+    </FloatingPanel>
   )
 }
