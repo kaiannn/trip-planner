@@ -25,6 +25,7 @@ import {
   type TaskPace,
 } from '../../lib/taskBrief'
 import { amapTypesForInterests, type CoarseFilterPoi } from '../../lib/poiCoarseFilter'
+import { effectiveVisitMinutes } from '../../lib/visitTime'
 
 export interface AiState {
   aiCityId: string
@@ -311,7 +312,7 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
     },
 
     runReasonablenessChecks: () => {
-      const { dailyPlans } = get()
+      const { dailyPlans, spots } = get()
       if (!dailyPlans.length) { useLogStore.getState().pushLog('尚未创建任何每日行程。', 'warn'); return }
       const daysWithoutLodging = dailyPlans.filter((d) => !d.lodging?.name).map((d) => d.dayIndex)
       if (daysWithoutLodging.length) {
@@ -319,11 +320,36 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
       } else {
         useLogStore.getState().pushLog('所有天数都填写了住宿信息 ✔')
       }
+      const byId = new Map(spots.map((sp) => [sp.id, sp]))
       dailyPlans.forEach((day) => {
         if (day.spotOrder.length > 6) {
           useLogStore.getState().pushLog(`第 ${day.dayIndex} 天安排了 ${day.spotOrder.length} 个景点，可能过于紧凑。`, 'warn')
         } else if (day.spotOrder.length <= 1) {
           useLogStore.getState().pushLog(`第 ${day.dayIndex} 天只安排了 ${day.spotOrder.length} 个景点，行程较宽松。`)
+        }
+        // Minutes-aware load check (P1.5 data) — pure code, no LLM.
+        let load = 0
+        let known = 0
+        for (let i = 0; i < day.spotOrder.length; i++) {
+          const sp = byId.get(day.spotOrder[i])
+          if (!sp) continue
+          known++
+          load += effectiveVisitMinutes(sp)
+          const prev = i > 0 ? byId.get(day.spotOrder[i - 1]) : null
+          if (prev?.location && sp.location) {
+            // rough city transit hop between consecutive stops
+            const dx = Math.abs(sp.location.lng - prev.location.lng)
+            const dy = Math.abs(sp.location.lat - prev.location.lat)
+            const deg = Math.max(dx, dy)
+            // ~0.01° ≈ 1km → ~15 min city transit heuristic
+            load += Math.round(deg * 1500)
+          }
+        }
+        if (known >= 2 && load > 480) {
+          useLogStore.getState().pushLog(
+            `第 ${day.dayIndex} 天预计约 ${Math.round(load / 60)} 小时行程，建议减 1 站或改节奏。`,
+            'warn',
+          )
         }
       })
     },

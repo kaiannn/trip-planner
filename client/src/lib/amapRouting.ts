@@ -52,12 +52,34 @@ const ESTIMATE_MAX_M: Record<TransportMode, number> = {
 
 const segmentCache = new Map<string, SegmentResult>()
 
-function cacheKey(
+/** Public key form matches cache — for tests and "kept leg" reuse. */
+export function segmentCacheKey(
   mode: TransportMode,
   a: { lat: number; lng: number },
   b: { lat: number; lng: number },
 ): string {
   return `${mode}:${a.lng.toFixed(5)},${a.lat.toFixed(5)}|${b.lng.toFixed(5)},${b.lat.toFixed(5)}`
+}
+
+export function hasCachedSegment(
+  mode: TransportMode,
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): boolean {
+  return segmentCache.has(segmentCacheKey(mode, a, b))
+}
+
+/** Test-only: drop in-memory road geometry so cases don't leak across files. */
+export function clearSegmentCache(): void {
+  segmentCache.clear()
+}
+
+function cacheKey(
+  mode: TransportMode,
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): string {
+  return segmentCacheKey(mode, a, b)
 }
 
 /** Straight-line fallback so the popup can still offer a usable estimate. */

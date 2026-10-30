@@ -297,6 +297,8 @@ export function createTripCoreActions(set: SetFn, get: GetFn): TripCoreActions {
         }
       })
       get().bumpMapRedraw()
+      // Day order change affects AI prompt context — dirty only, no LLM.
+      get().scheduleAiRefresh()
     },
 
     setSegmentMode: (dayId, fromSpotId, toSpotId, mode) => {
