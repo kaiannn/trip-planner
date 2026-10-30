@@ -18,7 +18,6 @@ export function Header() {
   const clearTrip = useTripStore((s) => s.clearTrip)
   const setTripField = useTripStore((s) => s.setTripField)
   const loadDemoData = useTripStore((s) => s.loadDemoData)
-  const setAiSeedOpen = useTripStore((s) => s.setAiSeedOpen)
   const setSettingsOpen = useSettingsStore((s) => s.setSettingsOpen)
   const llmApiKey = useSettingsStore((s) => s.llmApiKey)
   const setCyclingOpen = useCyclingStore((s) => s.setOpen)
@@ -149,14 +148,6 @@ export function Header() {
             </span>
           )}
           <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              className="rounded-md border border-slate-200/80 bg-white/60 px-2.5 py-1 text-[12px] font-medium text-slate-700 transition hover:border-sky-300 hover:bg-white hover:text-sky-800"
-              onClick={() => setAiSeedOpen(true)}
-              title="用 AI 生成候选景点"
-            >
-              AI 推荐
-            </button>
             <button
               type="button"
               className="rounded-md border border-slate-200/80 bg-white/60 px-2.5 py-1 text-[12px] font-medium text-slate-700 transition hover:border-sky-300 hover:bg-white hover:text-sky-800"

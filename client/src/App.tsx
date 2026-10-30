@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { Header } from './components/Header'
 import { MapLayout } from './components/layout/MapLayout'
-import { AiSeedModal } from './components/AiSeedPanel'
 import { SettingsModal } from './components/modals/SettingsModal'
 import { SpotDetailModal } from './components/modals/SpotDetailModal'
 import { SpotPoolModal } from './components/modals/SpotPoolModal'
@@ -35,7 +34,6 @@ export default function App() {
       <main className="relative min-h-0 flex-1">
         <MapLayout />
       </main>
-      <AiSeedModal />
       <SpotPoolModal />
       <TripWizardModal />
       <SpotDetailModal />

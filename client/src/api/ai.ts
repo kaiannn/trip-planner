@@ -1,13 +1,6 @@
 import type { TripContextPayload } from '../lib/aiPrompt'
 import { useSettingsStore } from '../store/settingsStore'
-import type { AiPoolCandidate, AiSection } from '../types'
-import {
-  buildCoarseFilterUserPrompt,
-  COARSE_FILTER_SYSTEM_PROMPT,
-  parseKeepIds,
-  type CoarseFilterBriefLine,
-  type CoarseFilterPoi,
-} from '../lib/poiCoarseFilter'
+import type { AiSection } from '../types'
 
 let aiAbortController: AbortController | null = null
 
@@ -107,12 +100,6 @@ function parseSectionsFromJson(data: unknown): AiSection[] {
   return []
 }
 
-function parseCandidatesFromJson(data: unknown): AiPoolCandidate[] {
-  const obj = data as Record<string, unknown>
-  if (obj && typeof obj === 'object' && 'candidates' in obj) return Array.isArray(obj.candidates) ? obj.candidates : []
-  return []
-}
-
 // ── Public API ──
 
 export interface StreamAiHandlers {
@@ -201,26 +188,6 @@ export async function streamAiRecommend(
   })
 }
 
-const SEED_POOL_PROMPT =
-  '你在帮用户搜集「可能感兴趣的候选地点」,用于扔进他们的景点池。' +
-  '候选包括三种 kind:景点(sight)、酒店(hotel)、餐厅(restaurant)。' +
-  '只输出一个 JSON 对象,不要任何解释文字。' +
-  'JSON 结构为 {"candidates":[{"name":"名称","kind":"sight"或"hotel"或"restaurant","cityHint":"城市","address":"地址可选","description":"1-2 句话介绍","price":"酒店价格","link":"餐厅链接可选"}]}。' +
-  '至少给 10 个,至多给 20 个。'
-
-export async function fetchAiSeedPool(
-  description: string, cities: { name: string }[], retryOpts?: RetryOptions,
-): Promise<AiPoolCandidate[]> {
-  const citiesHint = cities.length ? `已选城市：${cities.map((c) => c.name).join('、')}` : ''
-  return withRetry(async () => {
-    const resp = await callLlm([
-      { role: 'system', content: SEED_POOL_PROMPT },
-      { role: 'user', content: `${citiesHint}\n\n用户的描述：\n${description}` },
-    ], { temperature: 0.5 })
-    return parseCandidatesFromJson(await resp.json())
-  }, retryOpts)
-}
-
 export interface PoiQueryResult {
   keywords: string
   types: string
@@ -247,27 +214,4 @@ export async function fetchAiPoiQuery(
     types: ((parsed.types as string) || '').trim(),
     quality: parsed.quality === 'high' ? 'high' : 'normal',
   }
-}
-
-/**
- * Coarse-filter real AMap POIs with a short closed-set prompt.
- * Returns allowed ids in the model's priority order (only).
- */
-export async function fetchAiPoiCoarseFilter(
-  pois: CoarseFilterPoi[],
-  brief: CoarseFilterBriefLine,
-  opts: { maxKeep?: number; retryOpts?: RetryOptions } = {},
-): Promise<string[]> {
-  if (!pois.length) return []
-  const maxKeep = Math.min(opts.maxKeep ?? 12, pois.length)
-  const user = buildCoarseFilterUserPrompt(pois, brief, maxKeep)
-  return withRetry(async () => {
-    const resp = await callLlm([
-      { role: 'system', content: COARSE_FILTER_SYSTEM_PROMPT },
-      { role: 'user', content: user },
-    ], { temperature: 0.2 })
-    const parsed = (await resp.json()) as Record<string, unknown>
-    const keep = parseKeepIds(parsed, pois.map((p) => p.id))
-    return keep.slice(0, maxKeep)
-  }, opts.retryOpts)
 }

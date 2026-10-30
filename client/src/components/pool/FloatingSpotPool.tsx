@@ -22,7 +22,6 @@ export function FloatingSpotPool() {
   const setMapFocusSpotId = useTripStore((s) => s.setMapFocusSpotId)
   const setSpotDetail = useTripStore((s) => s.setSpotDetail)
   const setSpotPoolOpen = useTripStore((s) => s.setSpotPoolOpen)
-  const setAiSeedOpen = useTripStore((s) => s.setAiSeedOpen)
   const mapFocusSpotId = useTripStore((s) => s.mapFocusSpotId)
   const assignSpotToActivePath = useTripStore((s) => s.assignSpotToActivePath)
   const dayPlanOpen = useTripStore((s) => s.dayPlanOpen)
@@ -151,10 +150,10 @@ export function FloatingSpotPool() {
           {spots.length === 0 && (
             <button
               type="button"
-              onClick={() => setAiSeedOpen(true)}
-              className="mt-2 rounded-md border border-teal-200 px-2.5 py-1 text-[12px] font-medium text-teal-700 transition hover:border-teal-300 hover:bg-teal-50"
+              onClick={() => setSpotPoolOpen(true)}
+              className="mt-2 rounded-md border border-sky-200 px-2.5 py-1 text-[12px] font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-50"
             >
-              用 AI 推荐景点
+              添加景点
             </button>
           )}
         </div>

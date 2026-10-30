@@ -1,30 +1,23 @@
 import type { Spot } from '../../types'
-import type { City } from '../../types'
 import { buildAiPrompt } from '../../lib/aiPrompt'
 import { isDuplicateSpot } from '../../lib/geo'
 import {
   fetchAiRecommend,
   streamAiRecommend,
-  fetchAiSeedPool,
-  fetchAiPoiCoarseFilter,
   abortPendingAiRequest,
 } from '../../api/ai'
-import { fetchAmapPoiAround, type AmapPoi } from '../../api/amap'
 import { useLogStore } from '../logStore'
 import { useSettingsStore } from '../settingsStore'
 import type { AiFocus, AiItem, AiSection } from '../../types'
 import type { SetFn, GetFn } from '../types'
-import { uid, collectTripContext, convertAmapPois } from '../utils'
+import { uid, collectTripContext } from '../utils'
 import {
   buildTaskBrief,
   missingSlots,
-  formatBriefLine,
-  PACE_LABELS,
   type MissingSlot,
   type TaskBrief,
   type TaskPace,
 } from '../../lib/taskBrief'
-import { amapTypesForInterests, type CoarseFilterPoi } from '../../lib/poiCoarseFilter'
 import { effectiveVisitMinutes } from '../../lib/visitTime'
 
 export interface AiState {
@@ -34,13 +27,9 @@ export interface AiState {
   aiPromptText: string
   aiSections: AiSection[]
   aiRefreshTimer: ReturnType<typeof setTimeout> | null
-  aiSeedInput: string
-  aiSeedStatus: string
-  /** AI recommend dialog open (Header button). */
-  aiSeedOpen: boolean
   /**
    * Trip changed since the last AI recommend. Edits only mark dirty;
-   * a real LLM call runs on explicit refresh (or seed).
+   * a real LLM call runs on explicit refresh from AiCard.
    */
   aiDirty: boolean
   /** Structured pace override; '' = unset (missing slot). */
@@ -54,10 +43,7 @@ export interface AiState {
 export interface AiActions {
   setAiCityId: (id: string) => void
   setAiBudget: (v: string) => void
-  setAiSeedInput: (v: string) => void
-  setAiSeedOpen: (v: boolean) => void
   requestAiRecommendations: (focus?: AiFocus) => Promise<void>
-  syncTripIntelligence: () => Promise<void>
   /** Mark recommendations stale without calling the LLM. */
   scheduleAiRefresh: () => void
   /** Run reasonableness checks only — no LLM. */
@@ -71,9 +57,6 @@ export interface AiActions {
   applyAiLodgingItem: (item: AiItem) => void
   extendDaySpotsByAI: (dayId: string) => Promise<void>
   runReasonablenessChecks: () => void
-  seedPoolFromAi: () => Promise<void>
-  /** Around-search recall + LLM coarse filter → pool (preferred seed path). */
-  seedPoolAroundWithFilter: () => Promise<void>
 }
 
 export const initialAiState: AiState = {
@@ -83,9 +66,6 @@ export const initialAiState: AiState = {
   aiPromptText: '',
   aiSections: [],
   aiRefreshTimer: null,
-  aiSeedInput: '',
-  aiSeedStatus: '',
-  aiSeedOpen: false,
   aiDirty: false,
   taskPace: '',
   taskInterests: [],
@@ -110,8 +90,6 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
   return {
     setAiCityId: (id) => set({ aiCityId: id }),
     setAiBudget: (v) => set({ aiBudget: v, aiDirty: true }),
-    setAiSeedInput: (v) => set({ aiSeedInput: v }),
-    setAiSeedOpen: (v) => set({ aiSeedOpen: v }),
     setTaskPace: (pace) => set({ taskPace: pace, aiDirty: true }),
     toggleTaskInterest: (interest) =>
       set((st) => ({
@@ -172,12 +150,6 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
       }
     },
 
-    syncTripIntelligence: async () => {
-      get().bumpMapRedraw()
-      get().runReasonablenessChecks()
-      await get().requestAiRecommendations('all')
-    },
-
     refreshTripChecks: () => {
       get().bumpMapRedraw()
       get().runReasonablenessChecks()
@@ -185,7 +157,7 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
 
     scheduleAiRefresh: () => {
       // Cost control: trip edits only mark recommendations stale.
-      // A full LLM regenerate runs when the user hits refresh / seed.
+      // A full LLM regenerate runs when the user hits refresh on AiCard.
       const t = get().aiRefreshTimer
       if (t) clearTimeout(t)
       abortPendingAiRequest()
@@ -327,7 +299,6 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
         } else if (day.spotOrder.length <= 1) {
           useLogStore.getState().pushLog(`第 ${day.dayIndex} 天只安排了 ${day.spotOrder.length} 个景点，行程较宽松。`)
         }
-        // Minutes-aware load check (P1.5 data) — pure code, no LLM.
         let load = 0
         let known = 0
         for (let i = 0; i < day.spotOrder.length; i++) {
@@ -337,11 +308,9 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
           load += effectiveVisitMinutes(sp)
           const prev = i > 0 ? byId.get(day.spotOrder[i - 1]) : null
           if (prev?.location && sp.location) {
-            // rough city transit hop between consecutive stops
             const dx = Math.abs(sp.location.lng - prev.location.lng)
             const dy = Math.abs(sp.location.lat - prev.location.lat)
             const deg = Math.max(dx, dy)
-            // ~0.01° ≈ 1km → ~15 min city transit heuristic
             load += Math.round(deg * 1500)
           }
         }
@@ -353,213 +322,5 @@ export function createAiActions(set: SetFn, get: GetFn): AiActions {
         }
       })
     },
-
-    seedPoolFromAi: async () => {
-      get().markUserTrip()
-      const s = get()
-      const desc = s.aiSeedInput.trim()
-      if (!desc) { useLogStore.getState().pushLog('请先填写你想去哪。', 'warn'); return }
-      const cityList = s.cities.slice().sort((a, b) => a.order - b.order)
-      if (!cityList.length) { useLogStore.getState().pushLog('请至少添加一个城市。', 'warn'); return }
-      set({ aiSeedStatus: 'AI 正在根据你的描述生成候选…' })
-      let candidates
-      try {
-        candidates = await fetchAiSeedPool(desc, cityList.map((c) => ({ name: c.name })))
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        set({ aiSeedStatus: `生成失败：${msg}` })
-        useLogStore.getState().pushLog(`AI 填充景点池失败：${msg}`, 'error')
-        if (msg.includes('LLM API Key')) useSettingsStore.getState().setSettingsOpen(true)
-        return
-      }
-      if (!candidates.length) { set({ aiSeedStatus: 'AI 没有返回候选。' }); return }
-      set({ aiSeedStatus: `收到 ${candidates.length} 个候选，正在定位坐标…` })
-      const AMapNs = typeof window !== 'undefined' ? window.AMap : undefined
-      const resolveOne = (name: string, city: string): Promise<{ lat: number; lng: number } | null> =>
-        new Promise((resolve) => {
-          if (!AMapNs?.Geocoder) return resolve(null)
-          const g = new AMapNs.Geocoder({ city: city || '全国' })
-          g.getLocation(city ? `${city}${name}` : name, (status, result) => {
-            if (status === 'complete' && result.info === 'OK' && result.geocodes?.length) {
-              resolve({ lat: result.geocodes[0].location.lat, lng: result.geocodes[0].location.lng })
-            } else { resolve(null) }
-          })
-        })
-      let added = 0
-      let skipped = 0
-      const skippedNames: string[] = []
-      for (const c of candidates) {
-        const matched = cityList.find((city) => c.cityHint ? city.name.includes(c.cityHint) : false) ?? cityList[0]
-        let loc = typeof c.lat === 'number' && typeof c.lng === 'number' ? { lat: c.lat, lng: c.lng } : null
-        if (!loc) loc = await resolveOne(c.name, matched.name)
-        if (!loc) { skipped++; skippedNames.push(c.name); continue }
-        if (s.addSpot({ kind: c.kind ?? 'sight', cityId: matched.id, name: c.name, location: loc, description: c.description, ...(c.kind === 'hotel' && c.price ? { price: c.price } : {}), ...(c.kind === 'restaurant' && c.link ? { link: c.link } : {}) } as Omit<Spot, 'id'>)) added++
-      }
-      set({ aiSeedStatus: `已添加 ${added} 个景点${skipped ? `，${skipped} 个因无法定位被跳过` : ''}。` })
-      useLogStore.getState().pushLog(`AI 景点池填充完成:+${added} 个${skipped ? `(跳过 ${skipped} 个)` : ''}。`)
-      if (skippedNames.length) {
-        useLogStore.getState().pushLog(`以下景点因高德无法定位被跳过：${skippedNames.join('、')}`, 'warn')
-      }
-      // Seed already spent one LLM call for candidates — do not auto full-recommend.
-      get().scheduleAiRefresh()
-      get().refreshTripChecks()
-    },
-
-    seedPoolAroundWithFilter: async () => {
-      get().markUserTrip()
-      const s = get()
-      const cityList = s.cities.slice().sort((a, b) => a.order - b.order)
-      const focusCity =
-        cityList.find((c) => c.id === (s.aiCityId || '')) || cityList[0]
-      if (!focusCity) {
-        useLogStore.getState().pushLog('请至少添加一个城市再使用周边精筛。', 'error')
-        return
-      }
-
-      const brief = buildTaskBrief(collectBriefSource())
-      const briefLine = formatBriefLine(brief)
-      const desc = s.aiSeedInput.trim()
-      set({ aiSeedStatus: '正在解析城市坐标…' })
-
-      const center = await resolveCityCenter(focusCity)
-      if (!center) {
-        set({ aiSeedStatus: '无法定位城市中心点。' })
-        useLogStore.getState().pushLog(
-          `无法为「${focusCity.name}」定位中心点（可在地图上点选城市）。`,
-          'error',
-        )
-        return
-      }
-
-      const types = amapTypesForInterests(brief.interestFocus)
-      set({ aiSeedStatus: `正在召回「${focusCity.name}」周边 POI…` })
-      let around: AmapPoi[] = []
-      try {
-        around = await fetchAmapPoiAround({
-          location: `${center.lng},${center.lat}`,
-          radius: 8000,
-          types,
-          pageSize: 25,
-        })
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        set({ aiSeedStatus: `周边召回失败：${msg}` })
-        useLogStore.getState().pushLog(`高德周边检索失败：${msg}`, 'error')
-        return
-      }
-      if (!around.length) {
-        set({ aiSeedStatus: '周边未返回 POI，可换个城市中心或放宽兴趣标签。' })
-        return
-      }
-
-      // Dedupe by id / name
-      const seen = new Set<string>()
-      const uniq: AmapPoi[] = []
-      for (const p of around) {
-        const key = p.id || p.name?.trim() || ''
-        if (!key || seen.has(key)) continue
-        seen.add(key)
-        uniq.push(p)
-      }
-
-      const filterPois: CoarseFilterPoi[] = uniq
-        .map((p) => {
-          const rating = Number(p.biz_ext?.rating || p.rating || 0)
-          return {
-            id: p.id || p.name || '',
-            name: (p.name || '').trim(),
-            type: p.type,
-            rating: rating || undefined,
-            cost: p.cost,
-          }
-        })
-        .filter((p) => p.id && p.name)
-
-      set({ aiSeedStatus: `召回 ${filterPois.length} 个 POI，正在粗筛…` })
-      let keepIds: string[]
-      try {
-        keepIds = await fetchAiPoiCoarseFilter(
-          filterPois,
-          {
-            description: desc || briefLine,
-            interests: brief.interestFocus,
-            pace: brief.pace ? PACE_LABELS[brief.pace] : undefined,
-            budgetPerDay: brief.budgetPerDay,
-          },
-          { maxKeep: 12 },
-        )
-      } catch (e) {
-        // Fallback: no LLM — keep first N real POIs (still better than inventing names)
-        const msg = e instanceof Error ? e.message : String(e)
-        useLogStore.getState().pushLog(
-          `粗筛失败（${msg}），回退为按召回顺序保留前 12 个真实 POI。`,
-          'warn',
-        )
-        keepIds = filterPois.slice(0, 12).map((p) => p.id)
-        if (msg.includes('LLM API Key')) useSettingsStore.getState().setSettingsOpen(true)
-      }
-      if (!keepIds.length) {
-        set({ aiSeedStatus: '粗筛未保留任何 POI。' })
-        return
-      }
-
-      const keepSet = new Set(keepIds)
-      const keptPois = keepIds
-        .map((id) => uniq.find((p) => (p.id || p.name) === id))
-        .filter((p): p is AmapPoi => Boolean(p))
-
-      const result = convertAmapPois(keptPois, focusCity.id, s.spots, 'spot_amap_around')
-      // Patch kind from AMap type codes (convertAmapPois defaults to sight)
-      const kindByAmapId = new Map<string, Spot['kind']>()
-      for (const p of keptPois) {
-        if (!p.id) continue
-        kindByAmapId.set(p.id, kindFromAmapType(p.type))
-      }
-      const spots = result.spots.map((sp) => {
-        const kind = sp.amapId ? kindByAmapId.get(sp.amapId) : undefined
-        if (!kind || kind === (sp as Spot).kind) return sp
-        return { ...sp, kind } as Spot
-      })
-      const added = spots.length - s.spots.length
-
-      set({
-        spots,
-        aiSeedStatus: `已精筛并加入 ${added} 个周边 POI（召回 ${filterPois.length} → 保留 ${keptPois.length}）。`,
-        aiCityId: focusCity.id,
-      })
-      useLogStore.getState().pushLog(
-        `周边精筛入池：${focusCity.name} 召回 ${filterPois.length} → 入池 ${added}${keepSet.size ? `（粗筛 ${keepSet.size}）` : ''}。`,
-      )
-      get().scheduleAiRefresh()
-      get().refreshTripChecks()
-    },
   }
-}
-
-/** AMap types → Spot.kind (best-effort). */
-function kindFromAmapType(type?: string): Spot['kind'] {
-  if (!type) return 'sight'
-  // 100000 酒店; 050000 餐饮服务
-  if (type.includes('100000')) return 'hotel'
-  if (type.includes('050000')) return 'restaurant'
-  return 'sight'
-}
-
-async function resolveCityCenter(city: City): Promise<{ lat: number; lng: number } | null> {
-  if (city.location && typeof city.location.lat === 'number') {
-    return city.location
-  }
-  const AMapNs = typeof window !== 'undefined' ? window.AMap : undefined
-  if (!AMapNs?.Geocoder) return null
-  return new Promise((resolve) => {
-    const g = new AMapNs.Geocoder({ city: city.name })
-    g.getLocation(city.name, (status, result) => {
-      if (status === 'complete' && result.info === 'OK' && result.geocodes?.length) {
-        const loc = result.geocodes[0].location
-        resolve({ lat: loc.lat, lng: loc.lng })
-      } else {
-        resolve(null)
-      }
-    })
-  })
 }

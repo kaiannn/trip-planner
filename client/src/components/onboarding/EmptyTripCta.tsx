@@ -4,8 +4,7 @@ import { useCyclingStore } from '../../cycling/store'
 import { Btn, inputClass } from '../ui'
 
 /**
- * First-run empty state: give a clear path to create a city,
- * open AI seeding, load the Hangzhou demo, or open the route book.
+ * First-run empty state: create a city, load demo, or open the route book.
  * Shown only when the trip has neither cities nor spots.
  */
 export function EmptyTripCta() {
@@ -13,7 +12,6 @@ export function EmptyTripCta() {
   const spots = useTripStore((s) => s.spots)
   const addCity = useTripStore((s) => s.addCity)
   const loadDemoData = useTripStore((s) => s.loadDemoData)
-  const setAiSeedOpen = useTripStore((s) => s.setAiSeedOpen)
   const setCyclingOpen = useCyclingStore((s) => s.setOpen)
 
   const [cityName, setCityName] = useState('')
@@ -29,7 +27,6 @@ export function EmptyTripCta() {
     if (!name) return
     addCity(name)
     setCityName('')
-    setAiSeedOpen(true)
   }
 
   return (
@@ -39,7 +36,7 @@ export function EmptyTripCta() {
           从一座城市开始
         </h2>
         <p className="mt-1.5 text-[13px] leading-relaxed text-slate-600">
-          输入想去的城市，或用 AI 一句话描述需求。行程会自动保存在这台设备的浏览器里。
+          输入想去的城市，行程会自动保存在这台设备的浏览器里。
         </p>
 
         <form onSubmit={onCreateCity} className="mt-4 flex gap-2">
@@ -60,9 +57,6 @@ export function EmptyTripCta() {
         </form>
 
         <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-          <Btn onClick={() => setAiSeedOpen(true)} variant="secondary">
-            AI 推荐
-          </Btn>
           <Btn
             onClick={() => {
               loadDemoData()
@@ -77,7 +71,7 @@ export function EmptyTripCta() {
         </div>
 
         <p className="mt-3 text-[12px] text-slate-500">
-          创建城市后可继续用 AI 或高德 POI 加景点，再拖进每天的日程。
+          创建城市后可从地图右上角 AI 推荐，或用高德 POI 加景点，再拖进每天的日程。
         </p>
       </div>
     </div>
