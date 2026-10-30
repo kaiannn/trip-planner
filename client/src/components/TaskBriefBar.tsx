@@ -19,12 +19,12 @@ const BUDGET_CHOICES = [200, 300, 500, 800]
  * with chips / tiny inputs — no LLM call.
  */
 export function TaskBriefBar() {
-  const cityNames = useTripStore((s) =>
-    s.cities.slice().sort((a, b) => a.order - b.order).map((c) => c.name),
-  )
+  // Subscribe to stable references only — never map/slice inside the selector
+  // (new array each time → useSyncExternalStore infinite re-render).
+  const cities = useTripStore((s) => s.cities)
   const tripStart = useTripStore((s) => s.tripStart)
   const tripEnd = useTripStore((s) => s.tripEnd)
-  const dailyPlanCount = useTripStore((s) => s.dailyPlans.length)
+  const dailyPlans = useTripStore((s) => s.dailyPlans)
   const aiBudget = useTripStore((s) => s.aiBudget)
   const taskPace = useTripStore((s) => s.taskPace)
   const taskInterests = useTripStore((s) => s.taskInterests)
@@ -34,6 +34,16 @@ export function TaskBriefBar() {
   const setTaskDays = useTripStore((s) => s.setTaskDays)
   const setAiBudget = useTripStore((s) => s.setAiBudget)
   const [showAllInterests, setShowAllInterests] = useState(false)
+
+  const cityNames = useMemo(
+    () =>
+      cities
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((c) => c.name),
+    [cities],
+  )
+  const dailyPlanCount = dailyPlans.length
 
   const brief = useMemo(
     () =>

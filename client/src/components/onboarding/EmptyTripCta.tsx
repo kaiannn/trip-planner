@@ -18,7 +18,10 @@ export function EmptyTripCta() {
 
   const [cityName, setCityName] = useState('')
 
-  if (cities.length > 0 || spots.length > 0) return null
+  // Defensive: bad rehydrate must not crash the whole map layout.
+  const safeCities = cities ?? []
+  const safeSpots = spots ?? []
+  if (safeCities.length > 0 || safeSpots.length > 0) return null
 
   const onCreateCity = (e: FormEvent) => {
     e.preventDefault()
